@@ -1,5 +1,6 @@
 package pl.put.poznan.server.logic
 
+import pl.put.poznan.server.logic.Tab
 import org.slf4j.LoggerFactory
 import pl.put.poznan.server.rest.Controller
 import java.sql.*
@@ -34,13 +35,25 @@ class DBUtils {
         return null
     }
 
-    private fun executeMySQLQuery() {
+    private fun makeSelectString(elements: String, tabName: String, whereString: String = "", stringJoin: String = ""): String{
+        var whereStringComplete = if(whereString.equals("")) whereString else "WHERE ".plus(whereString)
+
+        val sqlString = "SELECT ${elements} FROM ${tabName} ${stringJoin} ${whereStringComplete};"
+
+        return sqlString;
+    }
+    private fun useJoin(fromTabName: String, toTabName:String, joinFromKey: String, joinToKey: String):String{
+        var joinString="JOIN ${toTabName} ON ${fromTabName}.${joinFromKey} = ${toTabName}.${joinToKey} "
+        return joinString
+    }
+
+    private fun executeQuery(sqlString: String) {
         var stmt: Statement? = null
         var resultset: ResultSet? = null
 
         try {
             stmt = conn!!.createStatement()
-            resultset = stmt!!.executeQuery("select * from trash;")
+            resultset = stmt!!.executeQuery(sqlString)
 
             while (resultset!!.next()) {
                 logger.debug(resultset.getString("user_login_report"))
@@ -88,8 +101,29 @@ class DBUtils {
     }
 
     private fun getCompanies(data: String): String{
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
 
-        executeMySQLQuery()
-        return "company@comp.com;;0;;;;"
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("nip").plus(";")
+                dataToSend += resultset.getString("email").plus(";")
+                dataToSend += resultset.getInt("phone").toString().plus(";")
+                dataToSend += resultset.getString("country").plus(";")
+                dataToSend += resultset.getString("city").plus(";")
+                dataToSend += resultset.getString("street").plus(";")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
     }
 }
