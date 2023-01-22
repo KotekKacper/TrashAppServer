@@ -43,7 +43,7 @@ class DBUtils {
         return sqlString;
     }
     private fun useJoin(fromTabName: String, toTabName:String, joinFromKey: String, joinToKey: String):String{
-        var joinString="JOIN ${toTabName} ON ${fromTabName}.${joinFromKey} = ${toTabName}.${joinToKey} "
+        var joinString="LEFT JOIN ${toTabName} ON ${fromTabName}.${joinFromKey} = ${toTabName}.${joinToKey} "
         return joinString
     }
 
@@ -56,7 +56,7 @@ class DBUtils {
 
         return when(sqlFun){
             "getCompanies" -> getCompanies(data)
-            "getActiveTrash" -> getActiveTrash(data)
+            "getAllActiveTrash" -> getActiveTrash(data)
             "getUsers" -> getUsers(data)
             "getReports" -> getReports(data)
             "getAllGroups" -> getAllGroups(data)
@@ -104,15 +104,17 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
+            var joinString = useJoin(Tab.TRASH, Tab.IMAGE,"id","trash_id")
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH, stringJoin = joinString,whereString = "${Tab.TRASH}.collection_date IS NULL"))
+
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getString("nip").plus(";")
-                dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
-                dataToSend += resultset.getString("country").plus(";")
-                dataToSend += resultset.getString("city").plus(";")
-                dataToSend += resultset.getString("street").plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.id").plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
+                dataToSend += resultset.getTimestamp("${Tab.TRASH}.creation_date").toString().plus(";")
+                dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
+                dataToSend += resultset.getBytes("${Tab.IMAGE}.content").toString().plus(";")
+
                 dataToSend += "\n"
             }
         }
@@ -159,16 +161,21 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
+            dataToSend = data.split("\n")[1]
+            var user_login = data.split("\n")[0]
+            var joinString = useJoin(Tab.TRASH, Tab.IMAGE,"id","trash_id")
+            if(!user_login.equals("admin"))
+            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString,whereString = "user_login_report = ${user_login}"))
+            else
+                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString))
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getString("nip").plus(";")
-                dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
-                dataToSend += resultset.getString("country").plus(";")
-                dataToSend += resultset.getString("city").plus(";")
-                dataToSend += resultset.getString("street").plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.id").plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
+                dataToSend += resultset.getTimestamp("${Tab.TRASH}.creation_date").toString().plus(";")
+                dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
+                dataToSend += resultset.getTimestamp("${Tab.TRASH}.collection_date")?.toString().plus(";")
+                dataToSend += resultset.getBytes("${Tab.IMAGE}.content")?.toString()
                 dataToSend += "\n"
             }
         }

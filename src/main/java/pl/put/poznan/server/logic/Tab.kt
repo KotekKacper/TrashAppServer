@@ -14,4 +14,5 @@ object Tab {
     const val TRASH_TO_TYPE = "TrashToTrashType"
     const val COLLECTING_POINT_TO_TYPE = "CollectingPointToType"
     const val ROLE = "Role"
+    const val IMAGE = "Image"
 }
