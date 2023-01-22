@@ -42,14 +42,23 @@ class DBUtils {
 
         return sqlString;
     }
+
+    private fun makeInsertString(tabName: String, variablesToInsert: String, valueToInsert: String) : String{
+        return "INSERT INTO ${tabName} (${variablesToInsert}) VALUES (${valueToInsert})"
+    }
+
+    private fun makeUpdateString(tabName: String, variabletoUpdate: String, valueToUpdate: String, whereCondition:String? = "") : String{
+        return "UPDATE ${tabName} SET ${variabletoUpdate} = ${valueToUpdate} WHERE ${whereCondition}"
+    }
+
     private fun useJoin(fromTabName: String, toTabName:String, joinFromKey: String, joinToKey: String):String{
         var joinString="LEFT JOIN ${toTabName} ON ${fromTabName}.${joinFromKey} = ${toTabName}.${joinToKey} "
         return joinString
     }
 
-    private fun makeInsertString(tabName: String, variablesToInsert: String, valueToInsert: String) : String{
-        return "INSERT INTO ${tabName} (${variablesToInsert}) VALUES (${valueToInsert})"
-    }
+    private fun orderBy(elements: String): String{return " ORDER BY ${elements} ASC "}
+
+
     fun functionSelector(sqlFun: String, data: String): String{
         // log the parameters
         logger.debug(sqlFun)
@@ -65,6 +74,8 @@ class DBUtils {
             "getUserCred" -> getUserCred(data)
             "addUser" -> addUser(data)
             "addTrash" -> addTrash(data)
+            "updateTrash" -> updateTrash(data)
+            "updateUser" -> updateUser(data)
             else -> "Error: function doesn't exist"
         }
     }
@@ -251,7 +262,7 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH_COLLECT_POINT))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("nip").plus(";")
@@ -293,8 +304,55 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun addUser(data: String): String{return ""}
+    private fun addUser(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("\n")[0]
+            var valueToInsert = data.split("\n")[1]
+            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
+            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
+            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, USER"))
+            dataToSend = userRowsAffected.toString()
+            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
 
-    private fun addTrash(data: String): String{return ""}
+    private fun addTrash(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("\n")[0]
+            var valueToInsert = data.split("\n")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert))
+            println("$rowsAffected row(s) inserted in Trash.")
+
+            if(data.split("\n").size > 2) {
+                imageVariableToInsert = data.split("\n")[2]
+                imageValueToInsert = data.split("\n")[3]
+                var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE,imageVariableToInsert, imageValueToInsert))
+                println("$imageRowsAffected row(s) inserted in Image.")
+            }
+            dataToSend = rowsAffected.toString()
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun updateTrash(data: String): String{return ""}
+
+    private fun updateUser(data: String): String{return ""}
 
 }
