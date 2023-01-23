@@ -35,10 +35,10 @@ class DBUtils {
         return null
     }
 
-    private fun makeSelectString(elements: String, tabName: String, whereString: String = "", stringJoin: String = ""): String{
+    private fun makeSelectString(elements: String, tabName: String, whereString: String = "", stringJoin: String = "", orderByString: String = "", groupByString: String = ""): String{
         var whereStringComplete = if(whereString.equals("")) whereString else "WHERE ".plus(whereString)
 
-        val sqlString = "SELECT ${elements} FROM ${tabName} ${stringJoin} ${whereStringComplete};"
+        val sqlString = "SELECT ${elements} FROM ${tabName} ${stringJoin} ${groupByString} ${whereStringComplete} ${orderByString};"
 
         return sqlString;
     }
@@ -47,8 +47,8 @@ class DBUtils {
         return "INSERT INTO ${tabName} (${variablesToInsert}) VALUES (${valueToInsert})"
     }
 
-    private fun makeUpdateString(tabName: String, variabletoUpdate: String, valueToUpdate: String, whereCondition:String? = "") : String{
-        return "UPDATE ${tabName} SET ${variabletoUpdate} = ${valueToUpdate} WHERE ${whereCondition}"
+    private fun makeUpdateString(tabName: String, valuesToUpdate: String, whereCondition:String? = "") : String{
+        return "UPDATE ${tabName} SET ${valuesToUpdate} WHERE ${whereCondition}"
     }
 
     private fun useJoin(fromTabName: String, toTabName:String, joinFromKey: String, joinToKey: String):String{
@@ -56,7 +56,9 @@ class DBUtils {
         return joinString
     }
 
-    private fun orderBy(elements: String): String{return " ORDER BY ${elements} ASC "}
+    private fun orderBy(elements: String, order: String = "ASC"): String{return " ORDER BY ${elements} ${order} "}
+
+    private fun groupBy(elements: String): String{return " GROUP BY ${elements} "}
 
 
     fun functionSelector(sqlFun: String, data: String): String{
@@ -76,6 +78,7 @@ class DBUtils {
             "addTrash" -> addTrash(data)
             "updateTrash" -> updateTrash(data)
             "updateUser" -> updateUser(data)
+            "checkUserExist" -> checkUserExist(data)
             else -> "Error: function doesn't exist"
         }
     }
@@ -87,7 +90,7 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY, orderByString = orderBy("email")))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("nip").plus(";")
@@ -106,7 +109,6 @@ class DBUtils {
         return dataToSend
     }
 
-    //TODO implementaion using Procedure/Function from DB
     private fun getActiveTrash(data: String): String{
 
         var stmt: Statement? = null
@@ -116,7 +118,7 @@ class DBUtils {
             stmt = conn!!.createStatement()
 
             var joinString = useJoin(Tab.TRASH, Tab.IMAGE,"id","trash_id")
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH, stringJoin = joinString,whereString = "${Tab.TRASH}.collection_date IS NULL"))
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH, stringJoin = joinString,whereString = "${Tab.TRASH}.collection_date IS NULL", orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
 
 
             while (resultset!!.next()) {
@@ -145,7 +147,7 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
             var joinString = useJoin(Tab.USER, Tab.USER_TO_ROLE,"login","user_login").plus(useJoin(Tab.USER_TO_ROLE,Tab.ROLE,"role_name","role_name"))
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, stringJoin = joinString))
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, stringJoin = joinString, orderByString = orderBy("login")))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("${Tab.USER}.login").plus(";")
@@ -176,9 +178,9 @@ class DBUtils {
             var user_login = data.split("\n")[0]
             var joinString = useJoin(Tab.TRASH, Tab.IMAGE,"id","trash_id")
             if(!user_login.equals("admin"))
-            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString,whereString = "user_login_report = ${user_login}"))
+            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString,whereString = "user_login_report = ${user_login}",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
             else
-                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString))
+                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("${Tab.TRASH}.id").plus(";")
@@ -255,22 +257,19 @@ class DBUtils {
     }
 
     private fun getCollectingPoints(data: String): String{
-
         var stmt: Statement? = null
         var resultset: ResultSet? = null
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-
+            //var joinStr = useJoin(Tab.TRASH_COLLECT_POINT, Tab.TRASH, "${Tab.TRASH_COLLECT_POINT}.localization", "${Tab.TRASH}.collection_localization")
             resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH_COLLECT_POINT))
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getString("nip").plus(";")
-                dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
-                dataToSend += resultset.getString("country").plus(";")
-                dataToSend += resultset.getString("city").plus(";")
-                dataToSend += resultset.getString("street").plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization").plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.bus_empty").plus(";")
+                dataToSend += resultset.getInt("${Tab.TRASH_COLLECT_POINT}.processing_type").toString().plus(";")
+                //dataToSend += resultset.getString("GROUP_CONCAT(${Tab.TRASH}.id SEPARATOR '-')").plus(";")
                 dataToSend += "\n"
             }
         }
@@ -291,6 +290,28 @@ class DBUtils {
             stmt = conn!!.createStatement()
             val dataFrom = data.split(";")
             resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login=${dataFrom[0]} AND password=${dataFrom[1]}"))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getInt("COUNT(*)")
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
+    private fun checkUserExist(data: String): String{
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            val dataFrom = data.split(";")
+            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "LOWER(login) = LOWER(${dataFrom[0]})"))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getInt("COUNT(*)")
@@ -351,7 +372,26 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun updateTrash(data: String): String{return ""}
+    private fun updateTrash(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valuesToUpdate = data.split("\n")[0]
+            var whereCondition = data.split("\n")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.TRASH,valuesToUpdate, whereCondition))
+            println("$rowsAffected row(s) updated in Trash.")
+
+            dataToSend = rowsAffected.toString()
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
 
     private fun updateUser(data: String): String{return ""}
 
