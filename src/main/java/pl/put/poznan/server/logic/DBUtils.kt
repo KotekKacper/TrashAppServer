@@ -51,6 +51,10 @@ class DBUtils {
         return "UPDATE ${tabName} SET ${valuesToUpdate} WHERE ${whereCondition}"
     }
 
+    private fun makeCallString(valuesToUpdate: String) : String{
+        return "CALL `NewTrash`(${valuesToUpdate})"
+    }
+
     private fun useJoin(fromTabName: String, toTabName:String, joinFromKey: String, joinToKey: String):String{
         var joinString="LEFT JOIN ${toTabName} ON ${fromTabName}.${joinFromKey} = ${toTabName}.${joinToKey} "
         return joinString
@@ -75,13 +79,14 @@ class DBUtils {
             "getCollectingPoints" -> getCollectingPoints(data)
             "getUserCred" -> getUserCred(data)
             "addUser" -> addUser(data)
-            "addTrash" -> addTrash(data)
+            "addTrash" -> addTrashByFunc(data)
             "addReport" -> addReport(data)
             "addGroup" -> addGroup(data)
             "updateTrash" -> updateTrash(data)
             "updateUser" -> updateUser(data)
             "updateReport" -> updateReport(data)
             "checkUserExist" -> checkUserExist(data)
+            "checkUserForLogin" -> checkUserForLogin(data)
             else -> "Error: function doesn't exist"
         }
     }
@@ -177,8 +182,8 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            dataToSend = data.split("\n")[1]
-            var user_login = data.split("\n")[0]
+            dataToSend = data.split("|")[1]
+            var user_login = data.split("|")[0]
             var joinString = useJoin(Tab.TRASH, Tab.IMAGE,"id","trash_id")
             if(!user_login.equals("admin"))
             resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString,whereString = "user_login_report = ${user_login}",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
@@ -265,8 +270,8 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            var joinStr = useJoin(Tab.TRASH_COLLECT_POINT, Tab.TRASH, "${Tab.TRASH_COLLECT_POINT}.localization", "${Tab.TRASH}.collection_localization")
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH_COLLECT_POINT, stringJoin = joinStr))
+            var joinStr = useJoin(Tab.TRASH_COLLECT_POINT, Tab.TRASH, "localization", "collection_localization")
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH_COLLECT_POINT, stringJoin = joinStr, groupByString = groupBy("${Tab.TRASH_COLLECT_POINT}.localization")))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization").plus(";")
@@ -314,14 +319,40 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
             val dataFrom = data.split(";")
-            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "LOWER(login) = LOWER(${dataFrom[0]})"))
+            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login LIKE ${dataFrom[0]}"))
+
+            while (resultset!!.next()) {
+                dataToSend = resultset.getInt("COUNT(*)").toString()
+            }
+            if(!dataToSend.equals("0"))
+            {
+                dataToSend = "ERROR: User with such login already exists."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
+    private fun checkUserForLogin(data: String): String{
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            val dataFrom = data.split(", ")
+            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login = ${dataFrom[0]} AND password = ${dataFrom[1]}"))
 
             while (resultset!!.next()) {
                 dataToSend = resultset.getInt("COUNT(*)").toString()
             }
             if(dataToSend.equals("0"))
             {
-                dataToSend = "ERROR: User with such login already exists."
+                dataToSend = "ERROR: Login or password are incorrect."
             }
         }
         catch(ex: Exception)
@@ -337,11 +368,11 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("\n")[0]
-            var valueToInsert = data.split("\n")[1]
+            var variablesToInsert = data.split("|")[0]
+            var valueToInsert = data.split("|")[1]
             var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
             println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
-            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, USER"))
+            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
             dataToSend = userRowsAffected.toString()
             println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
 
@@ -378,6 +409,37 @@ class DBUtils {
                 println("$imageRowsAffected row(s) inserted in Image.")
             }
             dataToSend = rowsAffected.toString()
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun addTrashByFunc(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valueToInsert = data.split("|")[0]
+            var rowsAffected = stmt!!.executeUpdate(makeCallString(valueToInsert))
+            println("$rowsAffected row(s) inserted in Trash.")
+
+            if(data.split("|")[1].length > 0) {
+                for (i in 1..data.split("|").size) {
+                    imageValueToInsert = data.split("|")[i]
+                    var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE, "content, mime_type, trash_id", imageValueToInsert.plus(", png, ${valueToInsert.split(",")[0]}")))
+                    println("$imageRowsAffected row(s) inserted in Image.")
+                }
+            }
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
         }
         catch(ex: Exception)
         {
