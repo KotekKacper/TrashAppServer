@@ -393,6 +393,25 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun updateUser(data: String): String{return ""}
+    private fun updateUser(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valuesToUpdate = data.split("\n")[0]
+            var whereCondition = data.split("\n")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+            println("$rowsAffected row(s) updated in Trash.")
+
+            dataToSend = rowsAffected.toString()
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
 
 }
