@@ -76,8 +76,11 @@ class DBUtils {
             "getUserCred" -> getUserCred(data)
             "addUser" -> addUser(data)
             "addTrash" -> addTrash(data)
+            "addReport" -> addReport(data)
+            "addGroup" -> addGroup(data)
             "updateTrash" -> updateTrash(data)
             "updateUser" -> updateUser(data)
+            "updateReport" -> updateReport(data)
             "checkUserExist" -> checkUserExist(data)
             else -> "Error: function doesn't exist"
         }
@@ -262,14 +265,14 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            //var joinStr = useJoin(Tab.TRASH_COLLECT_POINT, Tab.TRASH, "${Tab.TRASH_COLLECT_POINT}.localization", "${Tab.TRASH}.collection_localization")
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH_COLLECT_POINT))
+            var joinStr = useJoin(Tab.TRASH_COLLECT_POINT, Tab.TRASH, "${Tab.TRASH_COLLECT_POINT}.localization", "${Tab.TRASH}.collection_localization")
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH_COLLECT_POINT, stringJoin = joinStr))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization").plus(";")
-                dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.bus_empty").plus(";")
-                dataToSend += resultset.getInt("${Tab.TRASH_COLLECT_POINT}.processing_type").toString().plus(";")
-                //dataToSend += resultset.getString("GROUP_CONCAT(${Tab.TRASH}.id SEPARATOR '-')").plus(";")
+                dataToSend += resultset.getInt("${Tab.TRASH_COLLECT_POINT}.bus_empty").toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.processing_type").plus(";")
+                dataToSend += resultset.getString("GROUP_CONCAT(${Tab.TRASH}.id SEPARATOR '-')").plus(";")
                 dataToSend += "\n"
             }
         }
@@ -314,7 +317,11 @@ class DBUtils {
             resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "LOWER(login) = LOWER(${dataFrom[0]})"))
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getInt("COUNT(*)")
+                dataToSend = resultset.getInt("COUNT(*)").toString()
+            }
+            if(dataToSend.equals("0"))
+            {
+                dataToSend = "ERROR: User with such login already exists."
             }
         }
         catch(ex: Exception)
@@ -337,6 +344,13 @@ class DBUtils {
             var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, USER"))
             dataToSend = userRowsAffected.toString()
             println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
+
+            if(userRowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during registration. Try again later."
+            }
+
+
         }
         catch(ex: Exception)
         {
@@ -346,6 +360,60 @@ class DBUtils {
     }
 
     private fun addTrash(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("\n")[0]
+            var valueToInsert = data.split("\n")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert))
+            println("$rowsAffected row(s) inserted in Trash.")
+
+            if(data.split("\n").size > 2) {
+                imageVariableToInsert = data.split("\n")[2]
+                imageValueToInsert = data.split("\n")[3]
+                var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE,imageVariableToInsert, imageValueToInsert))
+                println("$imageRowsAffected row(s) inserted in Image.")
+            }
+            dataToSend = rowsAffected.toString()
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun addReport(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("\n")[0]
+            var valueToInsert = data.split("\n")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert))
+            println("$rowsAffected row(s) inserted in Trash.")
+
+            if(data.split("\n").size > 2) {
+                imageVariableToInsert = data.split("\n")[2]
+                imageValueToInsert = data.split("\n")[3]
+                var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE,imageVariableToInsert, imageValueToInsert))
+                println("$imageRowsAffected row(s) inserted in Image.")
+            }
+            dataToSend = rowsAffected.toString()
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun addGroup(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
@@ -385,6 +453,37 @@ class DBUtils {
             println("$rowsAffected row(s) updated in Trash.")
 
             dataToSend = rowsAffected.toString()
+
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun updateReport(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valuesToUpdate = data.split("\n")[0]
+            var whereCondition = data.split("\n")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.TRASH,valuesToUpdate, whereCondition))
+            println("$rowsAffected row(s) updated in Trash.")
+
+            dataToSend = rowsAffected.toString()
+
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
         }
         catch(ex: Exception)
         {
@@ -406,6 +505,10 @@ class DBUtils {
             println("$rowsAffected row(s) updated in Trash.")
 
             dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
         }
         catch(ex: Exception)
         {
