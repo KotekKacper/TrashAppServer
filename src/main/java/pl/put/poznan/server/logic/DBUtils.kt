@@ -65,7 +65,7 @@ class DBUtils {
     private fun groupBy(elements: String): String{return " GROUP BY ${elements} "}
 
     private fun makeDeleteString(tabName: String, whereCondition: String?):String{
-        return "DELETE ${tabName} WHERE ${whereCondition}"
+        return "DELETE FROM ${tabName} WHERE ${whereCondition}"
     }
 
     fun functionSelector(sqlFun: String, data: String): String{
@@ -75,6 +75,7 @@ class DBUtils {
         return when(sqlFun){
             "getCompanies" -> getCompanies(data)
             "getAllActiveTrash" -> getActiveTrash(data)
+            "getAllCollectedTrash" -> getAllCollectedTrash(data)
             "getUsers" -> getUsers(data)
             "getReports" -> getReports(data)
             "getAllGroups" -> getAllGroups(data)
@@ -82,6 +83,7 @@ class DBUtils {
             "getCollectingPoints" -> getCollectingPoints(data)
             "getUserCred" -> getUserCred(data)
             "addUser" -> addUser(data)
+            "addUserRegister" -> addUserRegister(data)
             "addTrash" -> addTrashByFunc(data)
             "addReport" -> addReport(data)
             "addGroup" -> addGroup(data)
@@ -159,6 +161,36 @@ class DBUtils {
         return dataToSend
     }
 
+    private fun getAllCollectedTrash(data: String): String{
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+
+            //var joinString = useJoin(Tab.TRASH, Tab.IMAGE,"id","trash_id")
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH,whereString = "${Tab.TRASH}.collection_date IS NOT NULL", orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
+
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("${Tab.TRASH}.id").plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
+                dataToSend += resultset.getTimestamp("${Tab.TRASH}.creation_date").toString().plus(";")
+                dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
+                //dataToSend += resultset.getBytes("${Tab.IMAGE}.content").toString().plus(";")
+
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
     private fun getUsers(data: String): String{
 
         var stmt: Statement? = null
@@ -175,6 +207,10 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.USER}.email").toString().plus(";")
                 dataToSend += resultset.getInt("${Tab.USER}.phone").toString().plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.fullname").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.country").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.city").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.street").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
                 dataToSend += resultset.getString("${Tab.ROLE}.role_name").plus(";")
                 dataToSend += "\n"
             }
@@ -198,7 +234,7 @@ class DBUtils {
             var user_login = data.split("|")[1]
 
             if(!user_login.equals("admin"))
-            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,whereString = "${Tab.USER}.user_login_report = ${user_login}",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
+            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,whereString = "user_login_report = '${user_login}'",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
             else
                 resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
 
@@ -402,6 +438,33 @@ class DBUtils {
         return dataToSend
     }
 
+    private fun addUserRegister(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("|")[0]
+            var valueToInsert = data.split("|")[1]
+            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
+            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
+            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
+            dataToSend = userRowsAffected.toString()
+            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
+
+            if(userRowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during registration. Try again later."
+            }
+
+
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
     private fun addTrash(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -440,13 +503,7 @@ class DBUtils {
             var rowsAffected = stmt!!.executeUpdate(makeCallString(valueToInsert))
             println("$rowsAffected row(s) inserted in Trash.")
 
-            if(data.split("|")[1].length > 0) {
-                for (i in 1..data.split("|").size) {
-                    imageValueToInsert = data.split("|")[i]
-                    var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE, "content, mime_type, trash_id", imageValueToInsert.plus(", png, ${valueToInsert.split(",")[0]}")))
-                    println("$imageRowsAffected row(s) inserted in Image.")
-                }
-            }
+
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
             {
@@ -671,8 +728,10 @@ class DBUtils {
             stmt = conn!!.createStatement()
 
             var whereCondition = data
+            var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(whereCondition)))
+            println("$RolerowsAffected row(s) updated in User.")
             var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, whereCondition))
-            println("$rowsAffected row(s) updated in Trash.")
+            println("$rowsAffected row(s) updated in User.")
 
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
@@ -695,7 +754,7 @@ class DBUtils {
 
             var whereCondition = data
             var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH, whereCondition))
-            println("$rowsAffected row(s) updated in Trash.")
+            println("$rowsAffected row(s) updated in Report.")
 
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
