@@ -239,12 +239,18 @@ class DBUtils {
                 resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getString("${Tab.TRASH}.id").plus(";")
+                var id = resultset.getString("${Tab.TRASH}.id")
+                var r2 = conn!!.createStatement().executeQuery("select trashtype_name from trashtotrashtype where trash_id = ${id}")
+                var types = ""
+                while (r2!!.next()) {types+=r2.getString("typename").plus(',');}
+
+                dataToSend += id.plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.creation_date").toString().plus(";")
                 dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.collection_date")?.toString().plus(";")
-                //dataToSend += resultset.getBytes("${Tab.IMAGE}.content")?.toString()
+                dataToSend += resultset.getString("${Tab.TRASH}.user_login_report")?.toString().plus(";")
+                dataToSend += types.toString()
                 dataToSend += "\n"
             }
         }
@@ -264,15 +270,22 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
+            resultset = stmt!!.executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew")
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getString("nip").plus(";")
-                dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
-                dataToSend += resultset.getString("country").plus(";")
-                dataToSend += resultset.getString("city").plus(";")
-                dataToSend += resultset.getString("street").plus(";")
+                var id = resultset.getString("id")
+                var temp:String = ""
+                var resultset1 = conn!!.createStatement().executeQuery("select user_login from usergroup where cleaningcrew_id = ${id}")
+                while (resultset1!!.next())
+                {
+                    temp+=resultset.getString("user_login").plus(",")
+                }
+                dataToSend += id.plus(";")
+                dataToSend += resultset.getString("crew_name").plus(";")
+                dataToSend += resultset.getString("meet_date").plus(";")
+                dataToSend += resultset.getString("meeting_localization").plus(";")
+                dataToSend += temp.plus(";")
+
                 dataToSend += "\n"
             }
         }
@@ -321,7 +334,11 @@ class DBUtils {
             var joinStr = useJoin(Tab.TRASH_COLLECT_POINT, Tab.TRASH, "localization", "collection_localization")
             resultset = stmt!!.executeQuery(makeSelectString(data, Tab.TRASH_COLLECT_POINT, stringJoin = joinStr, groupByString = groupBy("${Tab.TRASH_COLLECT_POINT}.localization")))
 
+            //resultset = stmt!!.executeQuery("select TrashCollectingpoint.localization, TrashCollectingpoint.bus_empty, TrashCollectingpoint.processing_type from TrashCollectingPoint")
+
             while (resultset!!.next()) {
+                //var res2 = stmt!!.executeQuery("select Trash.id from TrashCollectingPoint LEFT JOIN Trash ON TrashCollectingPoint.localization = Trash.TrashCollectingPoint GROUP BY TrashCollectingPoint.localization")
+
                 dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization").plus(";")
                 dataToSend += resultset.getInt("${Tab.TRASH_COLLECT_POINT}.bus_empty").toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.processing_type").plus(";")
