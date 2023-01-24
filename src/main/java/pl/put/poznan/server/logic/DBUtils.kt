@@ -64,6 +64,9 @@ class DBUtils {
 
     private fun groupBy(elements: String): String{return " GROUP BY ${elements} "}
 
+    private fun makeDeleteString(tabName: String, whereCondition: String?):String{
+        return "DELETE ${tabName} WHERE ${whereCondition}"
+    }
 
     fun functionSelector(sqlFun: String, data: String): String{
         // log the parameters
@@ -85,6 +88,15 @@ class DBUtils {
             "updateTrash" -> updateTrash(data)
             "updateUser" -> updateUser(data)
             "updateReport" -> updateReport(data)
+            "updateVehicle" -> updateVehicle(data)
+            "updateGroup" -> updateGroup(data)
+            "updateWorker" -> updateWorker(data)
+            "deleteUser" -> deleteUser(data)
+            "deleteCollectingPoint" -> deleteCollectingPoint(data)
+            "deleteGroup" -> deleteGroup(data)
+            "deleteReport" -> deleteReport(data)
+            "deleteVehicle" -> deleteVehicle(data)
+            "deleteWorker" -> deleteWorker(data)
             "checkUserExist" -> checkUserExist(data)
             "checkUserForLogin" -> checkUserForLogin(data)
             else -> "Error: function doesn't exist"
@@ -182,13 +194,13 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            dataToSend = data.split("|")[1]
-            var user_login = data.split("|")[0]
-            var joinString = useJoin(Tab.TRASH, Tab.IMAGE,"id","trash_id")
+            dataToSend = data.split("|")[0]
+            var user_login = data.split("|")[1]
+
             if(!user_login.equals("admin"))
-            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString,whereString = "user_login_report = ${user_login}",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
+            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,whereString = "${Tab.USER}.user_login_report = ${user_login}",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
             else
-                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH, stringJoin = joinString,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
+                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
 
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("${Tab.TRASH}.id").plus(";")
@@ -196,7 +208,7 @@ class DBUtils {
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.creation_date").toString().plus(";")
                 dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.collection_date")?.toString().plus(";")
-                dataToSend += resultset.getBytes("${Tab.IMAGE}.content")?.toString()
+                //dataToSend += resultset.getBytes("${Tab.IMAGE}.content")?.toString()
                 dataToSend += "\n"
             }
         }
@@ -509,8 +521,8 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("\n")[0]
-            var whereCondition = data.split("\n")[1]
+            var valuesToUpdate = data.split("|")[0]
+            var whereCondition = data.split("|")[1]
             var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.TRASH,valuesToUpdate, whereCondition))
             println("$rowsAffected row(s) updated in Trash.")
 
@@ -535,10 +547,10 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("\n")[0]
-            var whereCondition = data.split("\n")[1]
+            var valuesToUpdate = data.split("|")[0]
+            var whereCondition = data.split("|")[1]
             var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.TRASH,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in Trash.")
+            println("$rowsAffected row(s) updated in Report.")
 
             dataToSend = rowsAffected.toString()
 
@@ -561,15 +573,226 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("\n")[0]
-            var whereCondition = data.split("\n")[1]
+            var valuesToUpdate = data.split("|")[0]
+            var whereCondition = data.split("|")[1]
             var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in Trash.")
+            println("$rowsAffected row(s) updated in User.")
 
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
             {
                 dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun updateGroup(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valuesToUpdate = data.split("|")[0]
+            var whereCondition = data.split("|")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+            println("$rowsAffected row(s) updated in User.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun updateWorker(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valuesToUpdate = data.split("|")[0]
+            var whereCondition = data.split("|")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+            println("$rowsAffected row(s) updated in User.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun updateVehicle(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valuesToUpdate = data.split("|")[0]
+            var whereCondition = data.split("|")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+            println("$rowsAffected row(s) updated in User.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun deleteUser(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, whereCondition))
+            println("$rowsAffected row(s) updated in Trash.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: User could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun deleteReport(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH, whereCondition))
+            println("$rowsAffected row(s) updated in Trash.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Report could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun deleteCollectingPoint(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH_COLLECT_POINT, whereCondition))
+            println("$rowsAffected row(s) updated in CoollectingPoint.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Collecting point could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun deleteWorker(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.WORKER, whereCondition))
+            println("$rowsAffected row(s) updated in Worker.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Worker could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun deleteVehicle(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.VEHICLE, whereCondition))
+            println("$rowsAffected row(s) updated in Vehicle.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Vehicle could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+    private fun deleteGroup(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.CLEAN_CREW, whereCondition))
+            println("$rowsAffected row(s) updated in the group.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Group could not be deleted. Please, try again later."
             }
         }
         catch(ex: Exception)
