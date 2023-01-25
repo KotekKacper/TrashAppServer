@@ -1,10 +1,12 @@
 package pl.put.poznan.server.logic
 
-import pl.put.poznan.server.logic.Tab
 import org.slf4j.LoggerFactory
-import pl.put.poznan.server.rest.Controller
 import java.sql.*
+import java.sql.Date
+import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.*
+
 
 class DBUtils {
 
@@ -12,6 +14,121 @@ class DBUtils {
     private var dbUsername = "user" // provide the username
     private var dbPassword = "userpass" // provide the corresponding password
     private var conn: Connection? = getConnection(dbUsername, dbPassword)
+
+    fun makeInsertStatement(tabName: String, cols: String): String {
+        val varCount = cols.split(",").size
+        val vars = ArrayList<String>()
+        for (i in 1..varCount) {
+            vars.add("?")
+        }
+        logger.debug("INSERT INTO ${tabName} (${cols}) VALUES (${vars.joinToString(",")})")
+        return "INSERT INTO ${tabName} (${cols}) VALUES (${vars.joinToString(",")})"
+    }
+
+    fun insertVehicle(tabName: String, data: String): String{
+        var dataToSend: String = ""
+        try{
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
+            val valuesToInsert = data.split("|")[1].split("`")
+            for (i in 1..valuesToInsert.size){
+                logger.debug("$i : ${valuesToInsert[i-1]}")
+                if (data.split("|")[0].split(",")[i-1] == "${Tab.VEHICLE}.filling"){
+                    stmt?.setFloat(i, valuesToInsert[i-1].toFloat())
+                } else{
+                    stmt?.setString(i, valuesToInsert[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
+
+            dataToSend = rowsAffected.toString()
+        }catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        }catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Insertion failed"
+        }
+        return dataToSend
+    }
+
+    fun insertWorker(tabName: String, data: String): String{
+        var dataToSend: String = ""
+        try{
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
+            val valuesToInsert = data.split("|")[1].split("`")
+            for (i in 1..valuesToInsert.size){
+                logger.debug("$i : ${valuesToInsert[i-1]}")
+                if (data.split("|")[0].split(",")[i-1] == "${Tab.WORKER}.birthdate"){
+                    val formatter: DateFormat = SimpleDateFormat("yyyy-MM-dd")
+                    val myDate: java.util.Date = formatter.parse(valuesToInsert[i-1])
+                    val sqlDate = Date(myDate.time)
+                    stmt?.setDate(i, sqlDate)
+                } else if (data.split("|")[0].split(",")[i-1] == "${Tab.WORKER}.company_nip"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.CLEAN_COMPANY} WHERE nip = ?")
+                    stmtFK?.setString(1, valuesToInsert[i-1])
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()){
+                        stmt?.setString(i, valuesToInsert[i-1])
+                    } else{
+                        return "ERROR: NIP not found in database"
+                    }
+                } else if (data.split("|")[0].split(",")[i-1] == "${Tab.WORKER}.vehicle_id"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.VEHICLE} WHERE id = ?")
+                    stmtFK?.setString(1, valuesToInsert[i-1])
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()){
+                        stmt?.setString(i, valuesToInsert[i-1])
+                    } else{
+                        return "ERROR: Vehicle not found in database"
+                    }
+                } else{
+                    stmt?.setString(i, valuesToInsert[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
+
+            dataToSend = rowsAffected.toString()
+        }catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        }catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Insertion failed"
+        }
+        return dataToSend
+    }
+
+    fun insertAny(tabName: String, data: String): String{
+        var dataToSend: String = ""
+        try{
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
+            val valuesToInsert = data.split("|")[1].split("`")
+            for (i in 1..valuesToInsert.size){
+                logger.debug("$i : ${valuesToInsert[i-1]}")
+                stmt?.setString(i, valuesToInsert[i-1])
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
+
+            dataToSend = rowsAffected.toString()
+        }catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        }catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Insertion failed"
+        }
+        return dataToSend
+    }
+
+
+
+
 
     private fun getConnection(username: String, password: String): Connection? {
         val connectionProps = Properties()
@@ -87,6 +204,9 @@ class DBUtils {
             "addTrash" -> addTrashByFunc(data)
             "addReport" -> addReport(data)
             "addGroup" -> addGroup(data)
+            "addCompany" -> addCompany(data)
+            "addVehicle" -> addVehicle(data)
+            "addWorker" -> addWorker(data)
             "updateTrash" -> updateTrash(data)
             "updateUser" -> updateUser(data)
             "updateReport" -> updateReport(data)
@@ -106,6 +226,7 @@ class DBUtils {
     }
 
     private fun getCompanies(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var resultset: ResultSet? = null
         var dataToSend: String = ""
@@ -132,6 +253,7 @@ class DBUtils {
     }
 
     private fun getActiveTrash(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -162,6 +284,7 @@ class DBUtils {
     }
 
     private fun getAllCollectedTrash(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -192,6 +315,7 @@ class DBUtils {
     }
 
     private fun getUsers(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -224,6 +348,7 @@ class DBUtils {
     }
 
     private fun getReports(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -242,7 +367,7 @@ class DBUtils {
                 var id = resultset.getString("${Tab.TRASH}.id")
                 var r2 = conn!!.createStatement().executeQuery("select trashtype_name from trashtotrashtype where trash_id = ${id}")
                 var types = ""
-                while (r2!!.next()) {types+=r2.getString("typename").plus(',');}
+                while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
 
                 dataToSend += id.plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
@@ -263,6 +388,7 @@ class DBUtils {
     }
 
     private fun getAllGroups(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -270,12 +396,13 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew")
+            resultset = stmt!!.executeQuery("select cleaningcrew_id from usergroup where user_login = ${data}")
 
             while (resultset!!.next()) {
                 var id = resultset.getString("id")
                 var temp:String = ""
-                var resultset1 = conn!!.createStatement().executeQuery("select user_login from usergroup where cleaningcrew_id = ${id}")
+                var resultset1 = conn!!.createStatement()
+                    .executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew where cleaningcrew_id = ${id}")
                 while (resultset1!!.next())
                 {
                     temp+=resultset.getString("user_login").plus(",")
@@ -298,6 +425,7 @@ class DBUtils {
     }
 
     private fun getUserTrash(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -326,6 +454,7 @@ class DBUtils {
     }
 
     private fun getCollectingPoints(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var resultset: ResultSet? = null
         var dataToSend: String = ""
@@ -355,6 +484,7 @@ class DBUtils {
     }
 
     private fun getUserCred(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -377,6 +507,7 @@ class DBUtils {
     }
 
     private fun checkUserExist(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -403,6 +534,7 @@ class DBUtils {
     }
 
     private fun checkUserForLogin(data: String): String{
+        logger.debug(data)
 
         var stmt: Statement? = null
         var resultset: ResultSet? = null
@@ -429,6 +561,7 @@ class DBUtils {
     }
 
     private fun addUser(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
@@ -456,6 +589,7 @@ class DBUtils {
     }
 
     private fun addUserRegister(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
@@ -483,6 +617,7 @@ class DBUtils {
     }
 
     private fun addTrash(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
@@ -510,6 +645,7 @@ class DBUtils {
     }
 
     private fun addTrashByFunc(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
@@ -535,6 +671,7 @@ class DBUtils {
     }
 
     private fun addReport(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
@@ -562,6 +699,7 @@ class DBUtils {
     }
 
     private fun addGroup(data: String): String{
+        logger.debug(data)
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
@@ -586,6 +724,30 @@ class DBUtils {
             ex.printStackTrace()
         }
         return dataToSend
+    }
+
+    private fun addCompany(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.CLEAN_COMPANY
+        val output = insertAny(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: NIP already in database"
+        else return output
+    }
+
+    private fun addVehicle(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.VEHICLE
+        val output = insertVehicle(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Vehicle already in database"
+        else return output
+    }
+
+    private fun addWorker(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.WORKER
+        val output = insertWorker(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Worker already in database"
+        else return output
     }
 
     private fun updateTrash(data: String): String{
