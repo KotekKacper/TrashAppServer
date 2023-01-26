@@ -190,7 +190,6 @@ class DBUtils {
         logger.debug(sqlFun)
 
         return when(sqlFun){
-            "getCompanies" -> getCompanies(data)
             "getAllActiveTrash" -> getActiveTrash(data)
             "getAllCollectedTrash" -> getAllCollectedTrash(data)
             "getUsers" -> getUsers(data)
@@ -198,7 +197,9 @@ class DBUtils {
             "getAllGroups" -> getAllGroups(data)
             "getUserTrash" -> getUserTrash(data)
             "getCollectingPoints" -> getCollectingPoints(data)
+            "getCompanies" -> getCompanies(data)
             "getUserCred" -> getUserCred(data)
+
             "addUser" -> addUser(data)
             "addUserRegister" -> addUserRegister(data)
             "addTrash" -> addTrashByFunc(data)
@@ -207,20 +208,25 @@ class DBUtils {
             "addCompany" -> addCompany(data)
             "addVehicle" -> addVehicle(data)
             "addWorker" -> addWorker(data)
+
             "updateTrash" -> updateTrash(data)
             "updateUser" -> updateUser(data)
             "updateReport" -> updateReport(data)
             "updateVehicle" -> updateVehicle(data)
             "updateGroup" -> updateGroup(data)
             "updateWorker" -> updateWorker(data)
+
             "deleteUser" -> deleteUser(data)
             "deleteCollectingPoint" -> deleteCollectingPoint(data)
             "deleteGroup" -> deleteGroup(data)
             "deleteReport" -> deleteReport(data)
             "deleteVehicle" -> deleteVehicle(data)
             "deleteWorker" -> deleteWorker(data)
+
             "checkUserExist" -> checkUserExist(data)
             "checkUserForLogin" -> checkUserForLogin(data)
+            "callActiveTrash" -> callActiveTrash(data)
+            "callArchiveTrash" -> callArchiveTrash(data)
             else -> "Error: function doesn't exist"
         }
     }
@@ -506,59 +512,6 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun checkUserExist(data: String): String{
-        logger.debug(data)
-
-        var stmt: Statement? = null
-        var resultset: ResultSet? = null
-        var dataToSend: String = ""
-        try{
-            stmt = conn!!.createStatement()
-            val dataFrom = data.split(";")
-            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login LIKE ${dataFrom[0]}"))
-
-            while (resultset!!.next()) {
-                dataToSend = resultset.getInt("COUNT(*)").toString()
-            }
-            if(!dataToSend.equals("0"))
-            {
-                dataToSend = "ERROR: User with such login already exists."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-
-        return dataToSend
-    }
-
-    private fun checkUserForLogin(data: String): String{
-        logger.debug(data)
-
-        var stmt: Statement? = null
-        var resultset: ResultSet? = null
-        var dataToSend: String = ""
-        try{
-            stmt = conn!!.createStatement()
-            val dataFrom = data.split(", ")
-            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login = ${dataFrom[0]} AND password = ${dataFrom[1]}"))
-
-            while (resultset!!.next()) {
-                dataToSend = resultset.getInt("COUNT(*)").toString()
-            }
-            if(dataToSend.equals("0"))
-            {
-                dataToSend = "ERROR: Login or password are incorrect."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-
-        return dataToSend
-    }
 
     private fun addUser(data: String): String{
         logger.debug(data)
@@ -725,7 +678,7 @@ class DBUtils {
         }
         return dataToSend
     }
-
+    // Done
     private fun addCompany(data: String): String{
         logger.debug(data)
         val tabName = Tab.CLEAN_COMPANY
@@ -733,7 +686,7 @@ class DBUtils {
         if (output == "ERROR: Duplicate key") return "ERROR: NIP already in database"
         else return output
     }
-
+    // Done
     private fun addVehicle(data: String): String{
         logger.debug(data)
         val tabName = Tab.VEHICLE
@@ -741,7 +694,7 @@ class DBUtils {
         if (output == "ERROR: Duplicate key") return "ERROR: Vehicle already in database"
         else return output
     }
-
+    // Done
     private fun addWorker(data: String): String{
         logger.debug(data)
         val tabName = Tab.WORKER
@@ -749,6 +702,7 @@ class DBUtils {
         if (output == "ERROR: Duplicate key") return "ERROR: Worker already in database"
         else return output
     }
+
 
     private fun updateTrash(data: String): String{
         var stmt: Statement? = null
@@ -826,6 +780,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun updateGroup(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -850,6 +805,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun updateWorker(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -874,6 +830,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun updateVehicle(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -898,6 +855,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
 
     private fun deleteUser(data: String): String{
         var stmt: Statement? = null
@@ -924,6 +882,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun deleteReport(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -947,6 +906,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun deleteCollectingPoint(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -970,6 +930,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun deleteWorker(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -993,6 +954,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun deleteVehicle(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -1016,6 +978,7 @@ class DBUtils {
         }
         return dataToSend
     }
+
     private fun deleteGroup(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -1038,6 +1001,83 @@ class DBUtils {
             ex.printStackTrace()
         }
         return dataToSend
+    }
+
+
+    private fun checkUserExist(data: String): String{
+        logger.debug(data)
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            val dataFrom = data.split(";")
+            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login LIKE ${dataFrom[0]}"))
+
+            while (resultset!!.next()) {
+                dataToSend = resultset.getInt("COUNT(*)").toString()
+            }
+            if(!dataToSend.equals("0"))
+            {
+                dataToSend = "ERROR: User with such login already exists."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
+    private fun checkUserForLogin(data: String): String{
+        logger.debug(data)
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            val dataFrom = data.split(", ")
+            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login = ${dataFrom[0]} AND password = ${dataFrom[1]}"))
+
+            while (resultset!!.next()) {
+                dataToSend = resultset.getInt("COUNT(*)").toString()
+            }
+            if(dataToSend.equals("0"))
+            {
+                dataToSend = "ERROR: Login or password are incorrect."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
+    private fun callActiveTrash(data: String): String{
+        try{
+            val stmt = conn?.prepareCall("{? = call CurrentTrashCount()}")
+            stmt?.registerOutParameter(1, Types.INTEGER)
+            stmt?.execute()
+            return stmt?.getInt(1).toString()
+        } catch(ex: Exception){
+            return "ERROR: Couldn't load active trash"
+        }
+    }
+
+    private fun callArchiveTrash(data: String): String{
+        try{
+            val stmt = conn?.prepareCall("{? = call ArchiveTrashCount()}")
+            stmt?.registerOutParameter(1, Types.INTEGER)
+            stmt?.execute()
+            return stmt?.getInt(1).toString()
+        } catch(ex: Exception){
+            return "ERROR: Couldn't load archive trash"
+        }
     }
 
 }
