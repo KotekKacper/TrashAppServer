@@ -126,6 +126,133 @@ class DBUtils {
         return dataToSend
     }
 
+    fun makeUpdateStatement(tabName: String, cols: String, idName: String, idVal: String): String{
+        val colsArray = cols.split(",")
+        val updates = ArrayList<String>()
+        for (col in colsArray){
+            updates.add("$col = ? ")
+        }
+        var output = "UPDATE ${tabName} SET "+updates.joinToString(", ")+"WHERE $idName = $idVal"
+
+        logger.debug(output)
+        return output
+    }
+
+    fun updateVehicle(tabName: String, data: String, idName: String): String{
+        var dataToSend: String = ""
+        try{
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val idVal = data.split("|")[2]
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (cols.split(",")[i-1] == "${Tab.VEHICLE}.filling"){
+                    stmt?.setFloat(i, valuesToUpdate[i-1].toFloat())
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        }
+        return dataToSend
+    }
+
+    fun updateWorker(tabName: String, data: String, idName1: String, idName2: String): String{
+        var dataToSend: String = ""
+        try{
+            val formatter: DateFormat = SimpleDateFormat("yyyy-MM-dd")
+
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val idVal1 = "'${data.split("|")[2]}'"
+            val idVal2 = Date(formatter.parse(data.split("|")[3]).time)
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName1, idVal1)+" AND ${idName2} = ?")
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (data.split("|")[0].split(",")[i-1] == "${Tab.WORKER}.birthdate"){
+                    val myDate: java.util.Date = formatter.parse(valuesToUpdate[i-1])
+                    val sqlDate = Date(myDate.time)
+                    stmt?.setDate(i, sqlDate)
+                } else if (data.split("|")[0].split(",")[i-1] == "${Tab.WORKER}.company_nip") {
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.CLEAN_COMPANY} WHERE nip = ?")
+                    stmtFK?.setString(1, valuesToUpdate[i - 1])
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()) {
+                        stmt?.setString(i, valuesToUpdate[i - 1])
+                    } else {
+                        return "ERROR: NIP not found in database"
+                    }
+                } else if (data.split("|")[0].split(",")[i-1] == "${Tab.WORKER}.vehicle_id"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.VEHICLE} WHERE id = ?")
+                    stmtFK?.setString(1, valuesToUpdate[i-1])
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()){
+                        stmt?.setString(i, valuesToUpdate[i-1])
+                    } else{
+                        return "ERROR: Vehicle not found in database"
+                    }
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+            stmt?.setDate(valuesToUpdate.size+1, idVal2)
+
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        }
+        return dataToSend
+    }
+
+    fun updateAny(tabName: String, data: String, idName: String): String{
+        var dataToSend: String = ""
+        try{
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val idVal = data.split("|")[2]
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                stmt?.setString(i, valuesToUpdate[i-1])
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            dataToSend = rowsAffected.toString()
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        }
+        return dataToSend
+    }
+
+
 
 
 
@@ -192,34 +319,40 @@ class DBUtils {
         return when(sqlFun){
             "getAllActiveTrash" -> getActiveTrash(data)
             "getAllCollectedTrash" -> getAllCollectedTrash(data)
-            "getUsers" -> getUsers(data)
             "getReports" -> getReports(data)
             "getAllGroups" -> getAllGroups(data)
+            "getUsers" -> getUsers(data)
             "getUserTrash" -> getUserTrash(data)
             "getCollectingPoints" -> getCollectingPoints(data)
             "getCompanies" -> getCompanies(data)
+            "getVehicles" -> getVehicles(data)
+            "getWorkers" -> getWorkers(data)
             "getUserCred" -> getUserCred(data)
 
-            "addUser" -> addUser(data)
-            "addUserRegister" -> addUserRegister(data)
             "addTrash" -> addTrashByFunc(data)
             "addReport" -> addReport(data)
             "addGroup" -> addGroup(data)
+            "addCollectingPoint" -> addCollectingPoint(data)
+            "addUser" -> addUser(data)
             "addCompany" -> addCompany(data)
             "addVehicle" -> addVehicle(data)
             "addWorker" -> addWorker(data)
+            "addUserRegister" -> addUserRegister(data)
 
             "updateTrash" -> updateTrash(data)
-            "updateUser" -> updateUser(data)
             "updateReport" -> updateReport(data)
-            "updateVehicle" -> updateVehicle(data)
             "updateGroup" -> updateGroup(data)
+//            "updateCollectingPoint" -> updateCollectingPoint(data)
+            "updateUser" -> updateUser(data)
+            "updateCompany" -> updateCompany(data)
+            "updateVehicle" -> updateVehicle(data)
             "updateWorker" -> updateWorker(data)
 
-            "deleteUser" -> deleteUser(data)
-            "deleteCollectingPoint" -> deleteCollectingPoint(data)
-            "deleteGroup" -> deleteGroup(data)
             "deleteReport" -> deleteReport(data)
+            "deleteGroup" -> deleteGroup(data)
+            "deleteCollectingPoint" -> deleteCollectingPoint(data)
+            "deleteUser" -> deleteUser(data)
+            "deleteCompany" -> deleteCompany(data)
             "deleteVehicle" -> deleteVehicle(data)
             "deleteWorker" -> deleteWorker(data)
 
@@ -227,36 +360,10 @@ class DBUtils {
             "checkUserForLogin" -> checkUserForLogin(data)
             "callActiveTrash" -> callActiveTrash(data)
             "callArchiveTrash" -> callArchiveTrash(data)
-            else -> "Error: function doesn't exist"
+            else -> "ERROR: function doesn't exist"
         }
     }
 
-    private fun getCompanies(data: String): String{
-        logger.debug(data)
-        var stmt: Statement? = null
-        var resultset: ResultSet? = null
-        var dataToSend: String = ""
-        try{
-            stmt = conn!!.createStatement()
-
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY, orderByString = orderBy("email")))
-
-            while (resultset!!.next()) {
-                dataToSend += resultset.getString("nip").plus(";")
-                dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
-                dataToSend += resultset.getString("country").plus(";")
-                dataToSend += resultset.getString("city").plus(";")
-                dataToSend += resultset.getString("street").plus(";")
-                dataToSend += "\n"
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
 
     private fun getActiveTrash(data: String): String{
         logger.debug(data)
@@ -320,39 +427,6 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun getUsers(data: String): String{
-        logger.debug(data)
-
-        var stmt: Statement? = null
-        var resultset: ResultSet? = null
-        var dataToSend: String = ""
-        try{
-            stmt = conn!!.createStatement()
-            var joinString = useJoin(Tab.USER, Tab.USER_TO_ROLE,"login","user_login").plus(useJoin(Tab.USER_TO_ROLE,Tab.ROLE,"role_name","role_name"))
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, stringJoin = joinString, orderByString = orderBy("login")))
-
-            while (resultset!!.next()) {
-                dataToSend += resultset.getString("${Tab.USER}.login").plus(";")
-                dataToSend += resultset.getString("${Tab.USER}.password").plus(";")
-                dataToSend += resultset.getString("${Tab.USER}.email").toString().plus(";")
-                dataToSend += resultset.getInt("${Tab.USER}.phone").toString().plus(";")
-                dataToSend += resultset.getString("${Tab.USER}.fullname").plus(";")
-                dataToSend += resultset.getString("${Tab.USER}.country").plus(";")
-                dataToSend += resultset.getString("${Tab.USER}.city").plus(";")
-                dataToSend += resultset.getString("${Tab.USER}.street").plus(";")
-                dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
-                dataToSend += resultset.getString("${Tab.ROLE}.role_name").plus(";")
-                dataToSend += "\n"
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-
-        return dataToSend
-    }
-
     private fun getReports(data: String): String{
         logger.debug(data)
 
@@ -365,7 +439,7 @@ class DBUtils {
             var user_login = data.split("|")[1]
 
             if(!user_login.equals("admin"))
-            resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,whereString = "user_login_report = '${user_login}'",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
+                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,whereString = "user_login_report = '${user_login}'",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
             else
                 resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
 
@@ -430,35 +504,6 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun getUserTrash(data: String): String{
-        logger.debug(data)
-
-        var stmt: Statement? = null
-        var resultset: ResultSet? = null
-        var dataToSend: String = ""
-        try{
-            stmt = conn!!.createStatement()
-
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
-
-            while (resultset!!.next()) {
-                dataToSend += resultset.getString("nip").plus(";")
-                dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
-                dataToSend += resultset.getString("country").plus(";")
-                dataToSend += resultset.getString("city").plus(";")
-                dataToSend += resultset.getString("street").plus(";")
-                dataToSend += "\n"
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-
-        return dataToSend
-    }
-
     private fun getCollectingPoints(data: String): String{
         logger.debug(data)
         var stmt: Statement? = null
@@ -489,6 +534,147 @@ class DBUtils {
         return dataToSend
     }
 
+    private fun getUsers(data: String): String{
+        logger.debug(data)
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            var joinString = useJoin(Tab.USER, Tab.USER_TO_ROLE,"login","user_login").plus(useJoin(Tab.USER_TO_ROLE,Tab.ROLE,"role_name","role_name"))
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, stringJoin = joinString, orderByString = orderBy("login")))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("${Tab.USER}.login").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.password").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.email").toString().plus(";")
+                dataToSend += resultset.getInt("${Tab.USER}.phone").toString().plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.fullname").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.country").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.city").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.street").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
+                dataToSend += resultset.getString("${Tab.ROLE}.role_name").plus(";")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
+    private fun getUserTrash(data: String): String{
+        logger.debug(data)
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("nip").plus(";")
+                dataToSend += resultset.getString("email").plus(";")
+                dataToSend += resultset.getInt("phone").toString().plus(";")
+                dataToSend += resultset.getString("country").plus(";")
+                dataToSend += resultset.getString("city").plus(";")
+                dataToSend += resultset.getString("street").plus(";")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
+    private fun getCompanies(data: String): String{
+        logger.debug(data)
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.CLEAN_COMPANY, orderByString = orderBy("email")))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("nip").plus(";")
+                dataToSend += resultset.getString("email").plus(";")
+                dataToSend += resultset.getInt("phone").toString().plus(";")
+                dataToSend += resultset.getString("country").plus(";")
+                dataToSend += resultset.getString("city").plus(";")
+                dataToSend += resultset.getString("street").plus(";")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun getVehicles(data: String): String{
+        logger.debug(data)
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.VEHICLE, orderByString = orderBy("id")))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("id").plus(";")
+                dataToSend += resultset.getString("in_use").plus(";")
+                dataToSend += resultset.getString("localization").plus(";")
+                dataToSend += resultset.getString("filling")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun getWorkers(data: String): String{
+        logger.debug(data)
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.WORKER, orderByString = orderBy("fullname")))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("fullname").plus(";")
+                dataToSend += resultset.getTimestamp("birthdate").toString().plus(";")
+                dataToSend += resultset.getString("job_start_time").plus(";")
+                dataToSend += resultset.getString("job_end_time").plus(";")
+                dataToSend += resultset.getString("company_nip").plus(";")
+                dataToSend += resultset.getString("vehicle_id")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
     private fun getUserCred(data: String): String{
         logger.debug(data)
 
@@ -512,62 +698,6 @@ class DBUtils {
         return dataToSend
     }
 
-
-    private fun addUser(data: String): String{
-        logger.debug(data)
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("|")[0]
-            var valueToInsert = data.split("|")[1]
-            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
-            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
-            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
-            dataToSend = userRowsAffected.toString()
-            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
-
-            if(userRowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during registration. Try again later."
-            }
-
-
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
-
-    private fun addUserRegister(data: String): String{
-        logger.debug(data)
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("|")[0]
-            var valueToInsert = data.split("|")[1]
-            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
-            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
-            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
-            dataToSend = userRowsAffected.toString()
-            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
-
-            if(userRowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during registration. Try again later."
-            }
-
-
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
 
     private fun addTrash(data: String): String{
         logger.debug(data)
@@ -678,6 +808,70 @@ class DBUtils {
         }
         return dataToSend
     }
+
+    private fun addCollectingPoint(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.CLEAN_COMPANY
+        val output = insertAny(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Point already in database"
+        else return output
+    }
+
+    private fun addUser(data: String): String{
+        logger.debug(data)
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("|")[0]
+            var valueToInsert = data.split("|")[1]
+            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
+            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
+            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
+            dataToSend = userRowsAffected.toString()
+            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
+
+            if(userRowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during registration. Try again later."
+            }
+
+
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun addUserRegister(data: String): String{
+        logger.debug(data)
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("|")[0]
+            var valueToInsert = data.split("|")[1]
+            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
+            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
+            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
+            dataToSend = userRowsAffected.toString()
+            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
+
+            if(userRowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during registration. Try again later."
+            }
+
+
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
     // Done
     private fun addCompany(data: String): String{
         logger.debug(data)
@@ -756,31 +950,6 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun updateUser(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
-
     private fun updateGroup(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -806,82 +975,63 @@ class DBUtils {
         return dataToSend
     }
 
+//    private fun updateCollectingPoint(data: String): String{
+//
+//    }
+
+    private fun updateUser(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+            var imageVariableToInsert: String? = ""
+            var imageValueToInsert: String? = ""
+            stmt = conn!!.createStatement()
+            var valuesToUpdate = data.split("|")[0]
+            var whereCondition = data.split("|")[1]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+            println("$rowsAffected row(s) updated in User.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                dataToSend = "ERROR: Some error occured during updating. Try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun updateCompany(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.CLEAN_COMPANY
+        val idName = "nip"
+        val output = updateAny(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Vehicle already in database"
+        else return output
+    }
+
+    private fun updateVehicle(data: String): String {
+        logger.debug(data)
+        val tabName = Tab.VEHICLE
+        val idName = "id"
+        val output = updateVehicle(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Vehicle already in database"
+        else return output
+    }
+
     private fun updateWorker(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+        logger.debug(data)
+        val tabName = Tab.WORKER
+        val idName1 = "fullname"
+        val idName2 = "birthdate"
+        val output = updateWorker(tabName, data, idName1, idName2)
+        if (output == "ERROR: Duplicate key") return "ERROR: The same name and birth date"
+        else return output
     }
 
-    private fun updateVehicle(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
-
-
-    private fun deleteUser(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-
-            stmt = conn!!.createStatement()
-
-            var whereCondition = data
-            var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(whereCondition)))
-            println("$RolerowsAffected row(s) updated in User.")
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: User could not be deleted. Please, try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
 
     private fun deleteReport(data: String): String{
         var stmt: Statement? = null
@@ -897,84 +1047,13 @@ class DBUtils {
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
             {
-                dataToSend = "ERROR: Report could not be deleted. Please, try again later."
+                return "ERROR: Report could not be deleted. Please, try again later."
             }
         }
         catch(ex: Exception)
         {
             ex.printStackTrace()
-        }
-        return dataToSend
-    }
-
-    private fun deleteCollectingPoint(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-
-            stmt = conn!!.createStatement()
-
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH_COLLECT_POINT, whereCondition))
-            println("$rowsAffected row(s) updated in CoollectingPoint.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Collecting point could not be deleted. Please, try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
-
-    private fun deleteWorker(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-
-            stmt = conn!!.createStatement()
-
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.WORKER, whereCondition))
-            println("$rowsAffected row(s) updated in Worker.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Worker could not be deleted. Please, try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
-
-    private fun deleteVehicle(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-
-            stmt = conn!!.createStatement()
-
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.VEHICLE, whereCondition))
-            println("$rowsAffected row(s) updated in Vehicle.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Vehicle could not be deleted. Please, try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
+            return "ERROR: Report could not be deleted. Please, try again later."
         }
         return dataToSend
     }
@@ -993,12 +1072,140 @@ class DBUtils {
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
             {
-                dataToSend = "ERROR: Group could not be deleted. Please, try again later."
+                return "ERROR: Group could not be deleted. Please, try again later."
             }
         }
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            return "ERROR: Group could not be deleted. Please, try again later."
+        }
+        return dataToSend
+    }
+
+    private fun deleteCollectingPoint(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH_COLLECT_POINT, whereCondition))
+            println("$rowsAffected row(s) updated in CoollectingPoint.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                return "ERROR: Collecting point could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Collecting point could not be deleted. Please, try again later."
+        }
+        return dataToSend
+    }
+
+    private fun deleteUser(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(whereCondition)))
+            println("$RolerowsAffected row(s) updated in User.")
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, whereCondition))
+            println("$rowsAffected row(s) updated in User.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                return "ERROR: User could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: User could not be deleted. Please, try again later."
+        }
+        return dataToSend
+    }
+
+    private fun deleteCompany(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.WORKER, whereCondition))
+            println("$rowsAffected row(s) updated in Company.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                return "ERROR: Company could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Company could not be deleted. Please, try again later."
+        }
+        return dataToSend
+    }
+
+    private fun deleteVehicle(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.VEHICLE, whereCondition))
+            println("$rowsAffected row(s) updated in Vehicle.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                return "ERROR: Vehicle could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Vehicle could not be deleted. Please, try again later."
+        }
+        return dataToSend
+    }
+
+    private fun deleteWorker(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.WORKER, whereCondition))
+            println("$rowsAffected row(s) updated in Worker.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                return "ERROR: Worker could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Worker could not be deleted. Please, try again later."
         }
         return dataToSend
     }
