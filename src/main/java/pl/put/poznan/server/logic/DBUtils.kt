@@ -476,7 +476,7 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery("select cleaningcrew_id from usergroup where user_login = ${data}")
+            resultset = stmt!!.executeQuery("select cleaningcrew_id from usergroup where user_login = '${data}'")
 
             while (resultset!!.next()) {
                 var id = resultset.getString("id")
@@ -499,6 +499,7 @@ class DBUtils {
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            return "ERROR: Adding failed"
         }
 
         return dataToSend
@@ -920,6 +921,7 @@ class DBUtils {
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            return "ERROR: Failed to add trash"
         }
         return dataToSend
     }
