@@ -1,6 +1,9 @@
 package pl.put.poznan.server.logic
 
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Autowired
+import pl.put.poznan.server.rest.TrashImage
+import java.awt.Image
 import java.sql.*
 import java.sql.Date
 import java.text.DateFormat
@@ -320,7 +323,7 @@ class DBUtils {
             "getAllActiveTrash" -> getActiveTrash(data)
             "getAllCollectedTrash" -> getAllCollectedTrash(data)
             "getReports" -> getReports(data)
-            "getAllGroups" -> getAllGroups(data)
+            "getGroups" -> getGroups(data)
             "getUsers" -> getUsers(data)
             "getUserTrash" -> getUserTrash(data)
             "getCollectingPoints" -> getCollectingPoints(data)
@@ -467,7 +470,7 @@ class DBUtils {
         return dataToSend
     }
 
-    private fun getAllGroups(data: String): String{
+    private fun getGroups(data: String): String{
         logger.debug(data)
 
         var stmt: Statement? = null
@@ -1210,6 +1213,46 @@ class DBUtils {
             return "ERROR: Worker could not be deleted. Please, try again later."
         }
         return dataToSend
+    }
+
+
+
+    fun uploadImage(trashId: String, type: String, content: ByteArray) {
+        try{
+            // Prepare the SQL query
+            val sql = "INSERT INTO image (trash_id, mime_type, content) VALUES (?, ?, ?)"
+            val stmt = conn?.prepareStatement(sql)
+
+            // Set the parameters for the query
+            stmt?.setInt(1, trashId.toInt())
+            stmt?.setString(2, type)
+            stmt?.setBytes(3, content)
+
+            // Execute the query
+            stmt?.executeUpdate()
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+    }
+
+    fun getImages(trashId: String, imgNumber: String): ByteArray {
+        var image: ByteArray = byteArrayOf()
+        // Prepare the SQL query
+        try {
+            val sql = "SELECT * FROM images WHERE trash_id = ? LIMIT 1 OFFSET ${imgNumber}-1"
+            val stmt = conn?.prepareStatement(sql)
+            stmt?.setInt(1, trashId.toInt())
+            stmt?.executeQuery().use { resultSet ->
+                while (resultSet?.next()!!) {
+                    image = resultSet.getBytes("content_type")
+                }
+            }
+        } catch(ex: Exception){
+            ex.printStackTrace()
+        }
+        return image
     }
 
 
