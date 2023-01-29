@@ -962,10 +962,14 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[1]
-            var whereCondition = data.split("|")[2]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.CLEAN_CREW,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
+            var valuesToUpdate = data.split("|")[2]
+            var whereCondition = data.split("|")[1]
+            var whereText = ""
+            for(i in 0..valuesToUpdate.split(",").size-2)
+                whereText = whereText.plus(whereCondition.split(",")[i].plus("=").plus(valuesToUpdate.split(",")[i])).plus(", ")
+            whereText = whereText.plus(valuesToUpdate.split(",")[3])
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.CLEAN_CREW,whereText, "id = ${data.split("|")[0].split(",")[1]}"))
+            println("$rowsAffected row(s) updated in Group.")
 
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
