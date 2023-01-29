@@ -358,6 +358,7 @@ class DBUtils {
             "deleteCompany" -> deleteCompany(data)
             "deleteVehicle" -> deleteVehicle(data)
             "deleteWorker" -> deleteWorker(data)
+            "deleteImage" -> deleteImage(data)
 
             "checkUserExist" -> checkUserExist(data)
             "checkUserForLogin" -> checkUserForLogin(data)
@@ -1280,6 +1281,21 @@ class DBUtils {
         }
         logger.debug(image.size.toString())
         return image
+    }
+
+    fun deleteImage(data: String): String{
+        val imageId = data
+        // Prepare the SQL query
+        try {
+            val sql = "DELETE FROM ${Tab.IMAGE} WHERE id = ?"
+            val stmt = conn?.prepareStatement(sql)
+            stmt?.setInt(1, imageId.toInt())
+            stmt?.executeUpdate()
+        } catch(ex: Exception){
+            ex.printStackTrace()
+            return "ERROR: Failed to delete the image"
+        }
+        return "Image deleted"
     }
 
 
