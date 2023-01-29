@@ -870,6 +870,10 @@ class DBUtils {
 
 
         }
+        catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR:User with such login exists. \nCreate another login."
+        }
         catch(ex: Exception)
         {
             ex.printStackTrace()
