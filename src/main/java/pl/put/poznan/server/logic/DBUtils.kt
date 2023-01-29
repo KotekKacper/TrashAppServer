@@ -448,9 +448,15 @@ class DBUtils {
 
             while (resultset!!.next()) {
                 var id = resultset.getString("${Tab.TRASH}.id")
+
                 var r2 = conn!!.createStatement().executeQuery("select trashtype_name from trashtotrashtype where trash_id = ${id}")
                 var types = ""
                 while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
+
+                var r3 = conn!!.createStatement().executeQuery("select id from image where trash_id = ${id}")
+                var images = arrayListOf<String>()
+                while (r3!!.next()) {images.add(r3.getInt("id").toString());}
+                var imgJoined = images.joinToString(",")
 
                 dataToSend += id.plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
@@ -458,7 +464,8 @@ class DBUtils {
                 dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.collection_date")?.toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.user_login_report")?.toString().plus(";")
-                dataToSend += types.toString()
+                dataToSend += types.toString().plus(";")
+                dataToSend += imgJoined.toString()
                 dataToSend += "\n"
             }
         }
@@ -1244,6 +1251,25 @@ class DBUtils {
             val sql = "SELECT * FROM ${Tab.IMAGE} WHERE trash_id = ? LIMIT 1 OFFSET ${imgNumber}"
             val stmt = conn?.prepareStatement(sql)
             stmt?.setInt(1, trashId.toInt())
+            stmt?.executeQuery().use { resultSet ->
+                while (resultSet?.next()!!) {
+                    image = resultSet.getBytes("content")
+                }
+            }
+        } catch(ex: Exception){
+            ex.printStackTrace()
+        }
+        logger.debug(image.size.toString())
+        return image
+    }
+
+    fun getImageById(imageId: String): ByteArray {
+        var image: ByteArray = byteArrayOf()
+        // Prepare the SQL query
+        try {
+            val sql = "SELECT * FROM ${Tab.IMAGE} WHERE id = ?"
+            val stmt = conn?.prepareStatement(sql)
+            stmt?.setInt(1, imageId.toInt())
             stmt?.executeQuery().use { resultSet ->
                 while (resultSet?.next()!!) {
                     image = resultSet.getBytes("content")
