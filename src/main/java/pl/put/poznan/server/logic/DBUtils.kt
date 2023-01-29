@@ -793,10 +793,15 @@ class DBUtils {
             var variablesToInsert = data.split("|")[1]
             var valueToInsert = data.split("|")[2]
             var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.CLEAN_CREW,variablesToInsert, valueToInsert))
-            conn!!.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES (${data.split("|")[0]})").use { imgStmt ->
+
+            var resultSet = stmt!!.executeQuery("SELECT id FROM ${Tab.CLEAN_CREW} WHERE crew_name = ${data.split("|")[0].split(",")[1]}")
+
+            while(resultSet.next())
+            conn!!.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES (${data.split("|")[0].split(",")[0]},${resultSet.getInt("id")} )").use { imgStmt ->
 
                 imgStmt.executeUpdate()
             }
+
             println("$rowsAffected row(s) inserted in Group.")
 
             dataToSend = rowsAffected.toString()
@@ -957,9 +962,9 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+            var valuesToUpdate = data.split("|")[1]
+            var whereCondition = data.split("|")[2]
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.CLEAN_CREW,valuesToUpdate, whereCondition))
             println("$rowsAffected row(s) updated in User.")
 
             dataToSend = rowsAffected.toString()
