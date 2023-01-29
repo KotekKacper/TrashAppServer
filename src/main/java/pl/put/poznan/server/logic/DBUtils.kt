@@ -438,13 +438,13 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            dataToSend = data.split("|")[0]
+            var dataForQuerry = data.split("|")[0]
             var user_login = data.split("|")[1]
 
             if(!user_login.equals("admin"))
-                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,whereString = "user_login_report = '${user_login}'",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
+                resultset = stmt!!.executeQuery(makeSelectString(dataForQuerry, Tab.TRASH,whereString = "user_login_report = '${user_login}'",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
             else
-                resultset = stmt!!.executeQuery(makeSelectString(dataToSend, Tab.TRASH,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
+                resultset = stmt!!.executeQuery(makeSelectString(dataForQuerry, Tab.TRASH,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
 
             while (resultset!!.next()) {
                 var id = resultset.getString("${Tab.TRASH}.id")
@@ -1241,17 +1241,18 @@ class DBUtils {
         var image: ByteArray = byteArrayOf()
         // Prepare the SQL query
         try {
-            val sql = "SELECT * FROM images WHERE trash_id = ? LIMIT 1 OFFSET ${imgNumber}-1"
+            val sql = "SELECT * FROM ${Tab.IMAGE} WHERE trash_id = ? LIMIT 1 OFFSET ${imgNumber}"
             val stmt = conn?.prepareStatement(sql)
             stmt?.setInt(1, trashId.toInt())
             stmt?.executeQuery().use { resultSet ->
                 while (resultSet?.next()!!) {
-                    image = resultSet.getBytes("content_type")
+                    image = resultSet.getBytes("content")
                 }
             }
         } catch(ex: Exception){
             ex.printStackTrace()
         }
+        logger.debug(image.size.toString())
         return image
     }
 

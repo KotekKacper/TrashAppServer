@@ -8,11 +8,10 @@ import org.springframework.web.multipart.MultipartFile;
 import pl.put.poznan.server.logic.DBUtils;
 
 import java.io.IOException;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api")
-public class ImageUploadController {
+public class ImageController {
 
     private static final Logger logger = LoggerFactory.getLogger(Controller.class);
 
@@ -34,7 +33,7 @@ public class ImageUploadController {
     @GetMapping("/image-download")
     public byte[] get(@RequestParam(value="trash-id", defaultValue="") String trashId,
                       @RequestParam(value="img-number", defaultValue="") String imgNumber) {
-        logger.debug("Hello, give me images!");
+        logger.debug("Image request: "+trashId+", "+imgNumber);
         DBUtils db = new DBUtils();
         return db.getImages(trashId, imgNumber);
     }
