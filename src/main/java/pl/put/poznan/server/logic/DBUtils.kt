@@ -1120,10 +1120,19 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(whereCondition)))
+            var whereCondition = data.split("'")[1]
+            var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(data)))
             println("$RolerowsAffected row(s) updated in User.")
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, whereCondition))
+
+            conn!!.prepareStatement("DELETE FROM ${Tab.IMAGE} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}'").use { trashStmt ->
+
+                trashStmt.executeUpdate()
+            }
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, data))
             println("$rowsAffected row(s) updated in User.")
 
             dataToSend = rowsAffected.toString()
@@ -1131,6 +1140,8 @@ class DBUtils {
             {
                 return "ERROR: User could not be deleted. Please, try again later."
             }
+            else
+                return "ERROR: User ${whereCondition} was successfully deleted."
         }
         catch(ex: Exception)
         {
@@ -1168,19 +1179,27 @@ class DBUtils {
     private fun deleteVehicle(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
-        try{
+        try {
 
             stmt = conn!!.createStatement()
 
             var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.VEHICLE, whereCondition))
-            println("$rowsAffected row(s) updated in Vehicle.")
+            var workersFK = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.WORKER, whereString = "vehicle_"+whereCondition))
+            if (workersFK!!.next()) {
+                if(workersFK.getInt("COUNT(*)")>0)
+                    return "ERROR: Vehicle could not be deleted. There are workers assigned to it."
 
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                return "ERROR: Vehicle could not be deleted. Please, try again later."
+                var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.VEHICLE, whereCondition))
+                println("$rowsAffected row(s) updated in Vehicle.")
+
+                dataToSend = rowsAffected.toString()
+                if (rowsAffected == 0) {
+                    return "ERROR: Vehicle could not be deleted. Please, try again later."
+                }
             }
+
+
+
         }
         catch(ex: Exception)
         {
