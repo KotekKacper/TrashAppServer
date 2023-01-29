@@ -479,24 +479,22 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery("select cleaningcrew_id from usergroup where user_login = '${data}'")
+            resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup where user_login = '${data}'")
 
             while (resultset!!.next()) {
-                var id = resultset.getString("id")
+                var id = resultset.getString("cleaningcrew_id")
                 var temp:String = ""
                 var resultset1 = conn!!.createStatement()
-                    .executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew where cleaningcrew_id = ${id}")
-                while (resultset1!!.next())
-                {
-                    temp+=resultset.getString("user_login").plus(",")
-                }
-                dataToSend += id.plus(";")
-                dataToSend += resultset.getString("crew_name").plus(";")
-                dataToSend += resultset.getString("meet_date").plus(";")
-                dataToSend += resultset.getString("meeting_localization").plus(";")
-                dataToSend += temp.plus(";")
+                    .executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew where id = ${id}")
+                while (resultset1!!.next()) {
+                    dataToSend += id.plus(";")
+                    dataToSend += resultset1.getString("crew_name").plus(";")
+                    dataToSend += resultset1.getString("meet_date").plus(";")
+                    dataToSend += resultset1.getString("meeting_localization").plus(";")
+                    dataToSend += temp.plus(";")
 
-                dataToSend += "\n"
+                    dataToSend += "|"
+                }
             }
         }
         catch(ex: Exception)
@@ -790,20 +788,17 @@ class DBUtils {
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("\n")[0]
-            var valueToInsert = data.split("\n")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert))
-            println("$rowsAffected row(s) inserted in Trash.")
 
-            if(data.split("\n").size > 2) {
-                imageVariableToInsert = data.split("\n")[2]
-                imageValueToInsert = data.split("\n")[3]
-                var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE,imageVariableToInsert, imageValueToInsert))
-                println("$imageRowsAffected row(s) inserted in Image.")
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("|")[1]
+            var valueToInsert = data.split("|")[2]
+            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.CLEAN_CREW,variablesToInsert, valueToInsert))
+            conn!!.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES (${data.split("|")[0]})").use { imgStmt ->
+
+                imgStmt.executeUpdate()
             }
+            println("$rowsAffected row(s) inserted in Group.")
+
             dataToSend = rowsAffected.toString()
         }
         catch(ex: Exception)
@@ -1045,8 +1040,16 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH, whereCondition))
+            var whereCondition = data.split("'")[1]
+            conn!!.prepareStatement("DELETE FROM ${Tab.IMAGE} WHERE trash_id = '${whereCondition}'").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE Trash_id = '${whereCondition}'").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH, data))
             println("$rowsAffected row(s) updated in Report.")
 
             dataToSend = rowsAffected.toString()
@@ -1070,8 +1073,14 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.CLEAN_CREW, whereCondition))
+
+            var whereCondition = data.split("'")[1]
+            conn!!.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE cleaningcrew_id IN (SELECT id FROM ${Tab.CLEAN_CREW} WHERE id = ${whereCondition})").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.CLEAN_CREW, data))
             println("$rowsAffected row(s) updated in the group.")
 
             dataToSend = rowsAffected.toString()
@@ -1095,8 +1104,12 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH_COLLECT_POINT, whereCondition))
+            var whereCondition = data.split("'")[1]
+            conn!!.prepareStatement("DELETE FROM ${Tab.COLLECTING_POINT_TO_TYPE} WHERE trashcollectingpoint_localization IN (SELECT localization FROM ${Tab.TRASH_COLLECT_POINT} WHERE localization = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH_COLLECT_POINT, data))
             println("$rowsAffected row(s) updated in CoollectingPoint.")
 
             dataToSend = rowsAffected.toString()
@@ -1125,6 +1138,14 @@ class DBUtils {
             println("$RolerowsAffected row(s) updated in User.")
 
             conn!!.prepareStatement("DELETE FROM ${Tab.IMAGE} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_COLLECT_POINT} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
 
                 imgStmt.executeUpdate()
             }

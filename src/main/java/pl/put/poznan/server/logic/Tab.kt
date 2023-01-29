@@ -15,4 +15,5 @@ object Tab {
     const val COLLECTING_POINT_TO_TYPE = "CollectingPointToType"
     const val ROLE = "Role"
     const val IMAGE = "Image"
+    const val USER_GROUP = "UserGroup"
 }
