@@ -299,7 +299,7 @@ class DBUtils {
     }
 
     private fun makeCallString(valuesToUpdate: String) : String{
-        return "CALL `NewTrash`(${valuesToUpdate})"
+        return "{? = call NewTrashFun(${valuesToUpdate})}"
     }
 
     private fun useJoin(fromTabName: String, toTabName:String, joinFromKey: String, joinToKey: String):String{
@@ -741,26 +741,22 @@ class DBUtils {
 
     private fun addTrashByFunc(data: String): String{
         logger.debug(data)
-        var stmt: Statement? = null
         var dataToSend: String = ""
         try{
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
             var valueToInsert = data.split("|")[0]
-            var rowsAffected = stmt!!.executeUpdate(makeCallString(valueToInsert))
-            println("$rowsAffected row(s) inserted in Trash.")
-
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
+            logger.debug(makeCallString(valueToInsert))
+            val stmt = conn?.prepareCall(makeCallString(valueToInsert))
+            stmt?.registerOutParameter(1, Types.INTEGER)
+            stmt?.execute()
+            logger.debug("Row inserted in Trash.")
+            return stmt!!.getInt(1).toString()
         }
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            return "ERROR: Some error occured during updating. Try again later."
         }
         return dataToSend
     }
@@ -770,21 +766,21 @@ class DBUtils {
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
             stmt = conn!!.createStatement()
             var variablesToInsert = data.split("\n")[0]
             var valueToInsert = data.split("\n")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert))
+            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert),
+                                                        Statement.RETURN_GENERATED_KEYS)
             println("$rowsAffected row(s) inserted in Trash.")
 
-            if(data.split("\n").size > 2) {
-                imageVariableToInsert = data.split("\n")[2]
-                imageValueToInsert = data.split("\n")[3]
-                var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE,imageVariableToInsert, imageValueToInsert))
-                println("$imageRowsAffected row(s) inserted in Image.")
+            if (rowsAffected == 1) {
+                val generatedKeys = stmt.generatedKeys
+                if (generatedKeys.next()) {
+                    val id = generatedKeys.getInt(1)
+                    logger.debug("Inserted row with ID: $id")
+                    dataToSend = id.toString()
+                }
             }
-            dataToSend = rowsAffected.toString()
         }
         catch(ex: Exception)
         {
