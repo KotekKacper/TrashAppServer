@@ -479,24 +479,22 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery("select cleaningcrew_id from usergroup where user_login = '${data}'")
+            resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup where user_login = '${data}'")
 
             while (resultset!!.next()) {
-                var id = resultset.getString("id")
+                var id = resultset.getString("cleaningcrew_id")
                 var temp:String = ""
                 var resultset1 = conn!!.createStatement()
-                    .executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew where cleaningcrew_id = ${id}")
-                while (resultset1!!.next())
-                {
-                    temp+=resultset.getString("user_login").plus(",")
-                }
-                dataToSend += id.plus(";")
-                dataToSend += resultset.getString("crew_name").plus(";")
-                dataToSend += resultset.getString("meet_date").plus(";")
-                dataToSend += resultset.getString("meeting_localization").plus(";")
-                dataToSend += temp.plus(";")
+                    .executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew where id = ${id}")
+                while (resultset1!!.next()) {
+                    dataToSend += id.plus(";")
+                    dataToSend += resultset1.getString("crew_name").plus(";")
+                    dataToSend += resultset1.getString("meet_date").plus(";")
+                    dataToSend += resultset1.getString("meeting_localization").plus(";")
+                    dataToSend += temp.plus(";")
 
-                dataToSend += "\n"
+                    dataToSend += "|"
+                }
             }
         }
         catch(ex: Exception)
@@ -790,20 +788,22 @@ class DBUtils {
         var stmt: Statement? = null
         var dataToSend: String = ""
         try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("\n")[0]
-            var valueToInsert = data.split("\n")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert))
-            println("$rowsAffected row(s) inserted in Trash.")
 
-            if(data.split("\n").size > 2) {
-                imageVariableToInsert = data.split("\n")[2]
-                imageValueToInsert = data.split("\n")[3]
-                var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE,imageVariableToInsert, imageValueToInsert))
-                println("$imageRowsAffected row(s) inserted in Image.")
+            stmt = conn!!.createStatement()
+            var variablesToInsert = data.split("|")[1]
+            var valueToInsert = data.split("|")[2]
+            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.CLEAN_CREW,variablesToInsert, valueToInsert))
+
+            var resultSet = stmt!!.executeQuery("SELECT id FROM ${Tab.CLEAN_CREW} WHERE crew_name = ${data.split("|")[0].split(",")[1]}")
+
+            while(resultSet.next())
+            conn!!.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES (${data.split("|")[0].split(",")[0]},${resultSet.getInt("id")} )").use { imgStmt ->
+
+                imgStmt.executeUpdate()
             }
+
+            println("$rowsAffected row(s) inserted in Group.")
+
             dataToSend = rowsAffected.toString()
         }
         catch(ex: Exception)
@@ -869,6 +869,10 @@ class DBUtils {
             }
 
 
+        }
+        catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR:User with such login exists. \nCreate another login."
         }
         catch(ex: Exception)
         {
@@ -962,10 +966,14 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
+            var valuesToUpdate = data.split("|")[2]
             var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
+            var whereText = ""
+            for(i in 0..valuesToUpdate.split(",").size-2)
+                whereText = whereText.plus(whereCondition.split(",")[i].plus("=").plus(valuesToUpdate.split(",")[i])).plus(", ")
+            whereText = whereText.plus(valuesToUpdate.split(",")[3])
+            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.CLEAN_CREW,whereText, "id = ${data.split("|")[0].split(",")[1]}"))
+            println("$rowsAffected row(s) updated in Group.")
 
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
@@ -1045,8 +1053,16 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH, whereCondition))
+            var whereCondition = data.split("'")[1]
+            conn!!.prepareStatement("DELETE FROM ${Tab.IMAGE} WHERE trash_id = '${whereCondition}'").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE Trash_id = '${whereCondition}'").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH, data))
             println("$rowsAffected row(s) updated in Report.")
 
             dataToSend = rowsAffected.toString()
@@ -1070,8 +1086,14 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.CLEAN_CREW, whereCondition))
+
+            var whereCondition = data.split("'")[1]
+            conn!!.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE cleaningcrew_id IN (SELECT id FROM ${Tab.CLEAN_CREW} WHERE id = ${whereCondition})").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.CLEAN_CREW, data))
             println("$rowsAffected row(s) updated in the group.")
 
             dataToSend = rowsAffected.toString()
@@ -1095,8 +1117,12 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH_COLLECT_POINT, whereCondition))
+            var whereCondition = data.split("'")[1]
+            conn!!.prepareStatement("DELETE FROM ${Tab.COLLECTING_POINT_TO_TYPE} WHERE trashcollectingpoint_localization IN (SELECT localization FROM ${Tab.TRASH_COLLECT_POINT} WHERE localization = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.TRASH_COLLECT_POINT, data))
             println("$rowsAffected row(s) updated in CoollectingPoint.")
 
             dataToSend = rowsAffected.toString()
@@ -1120,10 +1146,27 @@ class DBUtils {
 
             stmt = conn!!.createStatement()
 
-            var whereCondition = data
-            var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(whereCondition)))
+            var whereCondition = data.split("'")[1]
+            var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(data)))
             println("$RolerowsAffected row(s) updated in User.")
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, whereCondition))
+
+            conn!!.prepareStatement("DELETE FROM ${Tab.IMAGE} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_COLLECT_POINT} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
+
+                imgStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}'").use { trashStmt ->
+
+                trashStmt.executeUpdate()
+            }
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER, data))
             println("$rowsAffected row(s) updated in User.")
 
             dataToSend = rowsAffected.toString()
@@ -1131,6 +1174,8 @@ class DBUtils {
             {
                 return "ERROR: User could not be deleted. Please, try again later."
             }
+            else
+                return "ERROR: User ${whereCondition} was successfully deleted."
         }
         catch(ex: Exception)
         {
@@ -1168,19 +1213,27 @@ class DBUtils {
     private fun deleteVehicle(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
-        try{
+        try {
 
             stmt = conn!!.createStatement()
 
             var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.VEHICLE, whereCondition))
-            println("$rowsAffected row(s) updated in Vehicle.")
+            var workersFK = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.WORKER, whereString = "vehicle_"+whereCondition))
+            if (workersFK!!.next()) {
+                if(workersFK.getInt("COUNT(*)")>0)
+                    return "ERROR: Vehicle could not be deleted. There are workers assigned to it."
 
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                return "ERROR: Vehicle could not be deleted. Please, try again later."
+                var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.VEHICLE, whereCondition))
+                println("$rowsAffected row(s) updated in Vehicle.")
+
+                dataToSend = rowsAffected.toString()
+                if (rowsAffected == 0) {
+                    return "ERROR: Vehicle could not be deleted. Please, try again later."
+                }
             }
+
+
+
         }
         catch(ex: Exception)
         {
