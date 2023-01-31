@@ -12,7 +12,8 @@ object Tab {
     const val CLEAN_CREW = "CleaningCrew"
     const val USER_TO_ROLE = "UserToRole"
     const val TRASH_TO_TYPE = "TrashToTrashType"
-    const val COLLECTING_POINT_TO_TYPE = "CollectingPointToType"
+    const val COLLECTING_POINT_TO_TYPE = "collectingpointtotrashtype"
     const val ROLE = "Role"
     const val IMAGE = "Image"
+    const val USER_GROUP = "UserGroup"
 }
