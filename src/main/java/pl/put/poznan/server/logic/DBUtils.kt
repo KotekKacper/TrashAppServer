@@ -1341,11 +1341,11 @@ class DBUtils {
 
                 imgStmt.executeUpdate()
             }
-            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_COLLECT_POINT} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
-
-                imgStmt.executeUpdate()
-            }
             conn!!.prepareStatement("DELETE FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}'").use { trashStmt ->
+
+                trashStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE user_login = '${whereCondition}'").use { trashStmt ->
 
                 trashStmt.executeUpdate()
             }
