@@ -676,6 +676,7 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.TRASH}.user_login")?.toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.vehicle_id")?.toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.cleaningcrew_id")?.toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.collection_localization")?.toString().plus(";")
                 dataToSend += types.toString().plus(";")
                 dataToSend += "\n"
             }
@@ -974,7 +975,7 @@ class DBUtils {
         val tabName = Tab.TRASH
         val idName = "id"
         val output = insertReport(tabName, data, idName)
-        if (output == "ERROR: Duplicate key") return "ERROR: Report already in database"
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
         else return output
     }
 
@@ -1133,7 +1134,7 @@ class DBUtils {
         val tabName = Tab.TRASH
         val idName = "id"
         val output = updateReport(tabName, data, idName)
-        if (output == "ERROR: Duplicate key") return "ERROR: Report already in database"
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
         else return output
     }
 
