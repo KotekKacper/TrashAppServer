@@ -1376,7 +1376,7 @@ class DBUtils {
             stmt = conn!!.createStatement()
 
             var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.WORKER, whereCondition))
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.CLEAN_COMPANY, whereCondition))
             println("$rowsAffected row(s) updated in Company.")
 
             dataToSend = rowsAffected.toString()
@@ -1388,6 +1388,9 @@ class DBUtils {
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            if(ex.message?.contains("FOREIGN")!!)
+                return "ERROR: Company can't be deleted. It still has workers. Fire them and try again."
+
             return "ERROR: Company could not be deleted. Please, try again later."
         }
         return dataToSend
