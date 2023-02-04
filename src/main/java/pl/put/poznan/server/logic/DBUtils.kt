@@ -285,7 +285,15 @@ class DBUtils {
                     if (valuesToUpdate[i-1] == ","){
                         stmt?.setString(i, null)
                     } else{
-                        stmt?.setString(i, valuesToUpdate[i-1])
+                        val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_COLLECT_POINT} WHERE localization = ?")
+                        stmtFK?.setString(1, valuesToUpdate[i - 1])
+                        val rs = stmtFK?.executeQuery()
+                        if (rs!!.next()) {
+                            stmt?.setString(i, valuesToUpdate[i-1])
+                        } else {
+                            conn?.rollback()
+                            return "ERROR: Collecting point not found in database"
+                        }
                     }
                 } else if (cols.split(",")[i-1] == "${Tab.TRASH}.trash_size"){
                     stmt?.setInt(i, valuesToUpdate[i-1].toInt())
@@ -296,6 +304,7 @@ class DBUtils {
                     if (rs!!.next()) {
                         stmt?.setString(i, valuesToUpdate[i-1])
                     } else {
+                        conn?.rollback()
                         return "ERROR: User not found in database"
                     }
                 } else if (cols.split(",")[i-1] == "${Tab.TRASH}.vehicle_id"){
@@ -305,6 +314,7 @@ class DBUtils {
                     if (rs!!.next()) {
                         stmt?.setInt(i, valuesToUpdate[i-1].toInt())
                     } else {
+                        conn?.rollback()
                         return "ERROR: Vehicle not found in database"
                     }
                 } else if (cols.split(",")[i-1] == "${Tab.TRASH}.cleaningcrew_id"){
@@ -314,6 +324,7 @@ class DBUtils {
                     if (rs!!.next()) {
                         stmt?.setInt(i, valuesToUpdate[i-1].toInt())
                     } else {
+                        conn?.rollback()
                         return "ERROR: Crew not found in database"
                     }
                 } else{
