@@ -136,6 +136,30 @@ class DBUtils {
         return dataToSend
     }
 
+    fun insertPoint(tabName: String, data: String): String{
+        var dataToSend: String = ""
+        try{
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
+            val valuesToInsert = data.split("|")[1].split("`")
+            for (i in 1..valuesToInsert.size){
+                logger.debug("$i : ${valuesToInsert[i-1]}")
+                stmt?.setString(i, valuesToInsert[i-1])
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
+
+            dataToSend = rowsAffected.toString()
+        }catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        }catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Insertion failed"
+        }
+        return dataToSend
+    }
+
     fun insertVehicle(tabName: String, data: String): String{
         var dataToSend: String = ""
         try{
@@ -1033,8 +1057,8 @@ class DBUtils {
 
     private fun addCollectingPoint(data: String): String{
         logger.debug(data)
-        val tabName = Tab.CLEAN_COMPANY
-        val output = insertAny(tabName, data)
+        val tabName = Tab.TRASH_COLLECT_POINT
+        val output = insertPoint(tabName, data)
         if (output == "ERROR: Duplicate key") return "ERROR: Point already in database"
         else return output
     }
