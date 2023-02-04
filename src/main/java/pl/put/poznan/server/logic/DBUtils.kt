@@ -252,7 +252,7 @@ class DBUtils {
     fun updateReport(tabName: String, data: String, idName: String): String{
         var dataToSend: String = ""
         try{
-//            conn?.autoCommit = false
+            conn?.autoCommit = false
 
             var cols = data.split("|")[0]
             var vals = data.split("|")[1]
@@ -341,15 +341,19 @@ class DBUtils {
                 }
             }
 
-
+            conn?.commit()
             dataToSend = rowsAffected.toString()
         } catch (ex: SQLIntegrityConstraintViolationException){
+            conn?.rollback()
             ex.printStackTrace()
             return "ERROR: Duplicate key"
         } catch(ex: Exception)
         {
+            conn?.rollback()
             ex.printStackTrace()
             return "ERROR: Update failed"
+        } finally {
+            conn?.autoCommit = true
         }
         return dataToSend
     }
