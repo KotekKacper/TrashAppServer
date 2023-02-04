@@ -429,6 +429,60 @@ class DBUtils {
         return dataToSend
     }
 
+    fun updateCollectingPoint(tabName: String, data: String, idName: String): String {
+        var dataToSend: String = ""
+        try {
+            val trashTypes = data.split("|")[3]
+            val idVal = if (data.split("|")[2] == "")
+                data.split("|")[1].split("`")[0]
+            else data.split("|")[2]
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, data.split("|")[0], idName, "'$idVal'"))
+            val valuesToInsert = data.split("|")[1].split("`")
+            for (i in 1..valuesToInsert.size) {
+                logger.debug("$i : ${valuesToInsert[i - 1]}")
+                stmt?.setString(i, valuesToInsert[i - 1])
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
+
+            if (trashTypes != "") {
+                logger.debug(trashTypes)
+                // remove old trashToTrashtype
+                val stmt =
+                    conn?.prepareStatement("DELETE FROM ${Tab.COLLECTING_POINT_TO_TYPE} WHERE trashcollectingpoint_localization = ?")
+                stmt?.setString(1, idVal)
+                stmt?.executeUpdate()
+                for (tp in trashTypes.split(",")) {
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                    stmtFK?.setString(1, tp)
+                    val rs = stmtFK?.executeQuery()
+                    if (!rs!!.next()) {
+                        // add new to Trashtype if not exist
+                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                        stmt?.setString(1, tp)
+                        stmt?.executeUpdate()
+                    }
+                    // add new record to trashToTrashtype
+                    val stmt = conn
+                        ?.prepareStatement("INSERT INTO ${Tab.COLLECTING_POINT_TO_TYPE}(trashcollectingpoint_localization, trashtype_name) VALUES (?, ?)")
+                    stmt?.setString(1, idVal)
+                    stmt?.setString(2, tp)
+                    stmt?.executeUpdate()
+                }
+            }
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException) {
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch (ex: Exception) {
+            ex.printStackTrace()
+            return "ERROR: Insertion failed"
+        }
+        return dataToSend
+    }
+
     fun updateVehicle(tabName: String, data: String, idName: String): String{
         var dataToSend: String = ""
         try{
@@ -633,7 +687,7 @@ class DBUtils {
             "updateTrash" -> updateTrash(data)
             "updateReport" -> updateReport(data)
             "updateGroup" -> updateGroup(data)
-//            "updateCollectingPoint" -> updateCollectingPoint(data)
+            "updateCollectingPoint" -> updateCollectingPoint(data)
             "updateUser" -> updateUser(data)
             "updateCompany" -> updateCompany(data)
             "updateVehicle" -> updateVehicle(data)
@@ -1247,9 +1301,14 @@ class DBUtils {
         return dataToSend
     }
 
-//    private fun updateCollectingPoint(data: String): String{
-//
-//    }
+    private fun updateCollectingPoint(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.TRASH_COLLECT_POINT
+        val idName = "localization"
+        val output = updateCollectingPoint(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Point already in database"
+        else return output
+    }
 
     private fun updateUser(data: String): String{
         var stmt: Statement? = null
