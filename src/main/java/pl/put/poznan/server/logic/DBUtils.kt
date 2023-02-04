@@ -148,6 +148,35 @@ class DBUtils {
             val rowsAffected = stmt?.executeUpdate()
             logger.debug("$rowsAffected row inserted.")
 
+            val trashTypes = data.split("|")[3]
+            val idVal = if (data.split("|")[2] == "")
+                                    data.split("|")[1].split("`")[0]
+                               else data.split("|")[2]
+            if (trashTypes != ""){
+                logger.debug(trashTypes)
+                // remove old trashToTrashtype
+                val stmt = conn?.prepareStatement("DELETE FROM ${Tab.COLLECTING_POINT_TO_TYPE} WHERE trashcollectingpoint_localization = ?")
+                stmt?.setString(1, idVal)
+                stmt?.executeUpdate()
+                for (tp in trashTypes.split(",")){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                    stmtFK?.setString(1, tp)
+                    val rs = stmtFK?.executeQuery()
+                    if (!rs!!.next()) {
+                        // add new to Trashtype if not exist
+                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                        stmt?.setString(1, tp)
+                        stmt?.executeUpdate()
+                    }
+                    // add new record to trashToTrashtype
+                    val stmt = conn
+                        ?.prepareStatement("INSERT INTO ${Tab.COLLECTING_POINT_TO_TYPE}(trashcollectingpoint_localization, trashtype_name) VALUES (?, ?)")
+                    stmt?.setString(1, idVal)
+                    stmt?.setString(2, tp)
+                    stmt?.executeUpdate()
+                }
+            }
+
             dataToSend = rowsAffected.toString()
         }catch (ex: SQLIntegrityConstraintViolationException){
             ex.printStackTrace()
@@ -784,12 +813,17 @@ class DBUtils {
             //resultset = stmt!!.executeQuery("select TrashCollectingpoint.localization, TrashCollectingpoint.bus_empty, TrashCollectingpoint.processing_type from TrashCollectingPoint")
 
             while (resultset!!.next()) {
-                //var res2 = stmt!!.executeQuery("select Trash.id from TrashCollectingPoint LEFT JOIN Trash ON TrashCollectingPoint.localization = Trash.TrashCollectingPoint GROUP BY TrashCollectingPoint.localization")
+                val loc = resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization")
 
-                dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization").plus(";")
+                var r2 = conn!!.createStatement().executeQuery("select trashtype_name from collectingpointtotrashtype where trashcollectingpoint_localization = '${loc}'")
+                var types = ""
+                while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
+
+                dataToSend += loc.plus(";")
                 dataToSend += resultset.getInt("${Tab.TRASH_COLLECT_POINT}.bus_empty").toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.processing_type").plus(";")
                 dataToSend += resultset.getString("GROUP_CONCAT(${Tab.TRASH}.id SEPARATOR '-')").plus(";")
+                dataToSend += types
                 dataToSend += "\n"
             }
         }
