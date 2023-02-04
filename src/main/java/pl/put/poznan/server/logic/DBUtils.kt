@@ -28,6 +28,114 @@ class DBUtils {
         return "INSERT INTO ${tabName} (${cols}) VALUES (${vars.joinToString(",")})"
     }
 
+    fun insertReport(tabName: String, data: String, idName: String): String{
+        var dataToSend: String = ""
+        try{
+            var cols = data.split("|")[0]
+            var vals = data.split("|")[1]
+            val colsArr = ArrayList(cols.split(","))
+            val valsArr = ArrayList(vals.split("`"))
+
+
+            val indx = colsArr.indexOf("${Tab.TRASH}.trash_types")
+            val trashTypes = valsArr[indx]
+            if (colsArr.contains("${Tab.TRASH}.trash_types")) {
+                colsArr.remove("${Tab.TRASH}.trash_types")
+                cols = colsArr.joinToString(",")
+                valsArr.removeAt(indx)
+                vals = valsArr.joinToString("`")
+            }
+
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, cols), Statement.RETURN_GENERATED_KEYS)
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (cols.split(",")[i-1] == "${Tab.TRASH}.creation_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.collection_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.trash_size"){
+                    stmt?.setInt(i, valuesToUpdate[i-1].toInt())
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.user_login"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                    stmtFK?.setString(1, valuesToUpdate[i - 1])
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()) {
+                        stmt?.setString(i, valuesToUpdate[i-1])
+                    } else {
+                        return "ERROR: User not found in database"
+                    }
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.vehicle_id"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.VEHICLE} WHERE id = ?")
+                    stmtFK?.setInt(1, valuesToUpdate[i - 1].toInt())
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()) {
+                        stmt?.setInt(i, valuesToUpdate[i-1].toInt())
+                    } else {
+                        return "ERROR: Vehicle not found in database"
+                    }
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.cleaningcrew_id"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.CLEAN_CREW} WHERE id = ?")
+                    stmtFK?.setInt(1, valuesToUpdate[i - 1].toInt())
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()) {
+                        stmt?.setInt(i, valuesToUpdate[i-1].toInt())
+                    } else {
+                        return "ERROR: Crew not found in database"
+                    }
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+
+            val rowsAffected = stmt?.executeUpdate()
+            val resultSet = stmt?.generatedKeys
+
+            var idVal = 0
+            if (resultSet?.next() == true) {
+                val generatedId = resultSet.getInt(1)
+                println("Generated ID: $generatedId")
+                idVal = generatedId
+            }
+            logger.debug("$rowsAffected row updated.")
+
+            if (colsArr.contains("${Tab.TRASH}.trash_types")){
+                logger.debug(trashTypes)
+                // remove old trashToTrashtype
+                val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
+                stmt?.setInt(1, idVal.toInt())
+                stmt?.executeUpdate()
+                for (tp in trashTypes.split(",")){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                    stmtFK?.setString(1, tp)
+                    val rs = stmtFK?.executeQuery()
+                    if (!rs!!.next()) {
+                        // add new to Trashtype if not exist
+                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                        stmt?.setString(1, tp)
+                        stmt?.executeUpdate()
+                    }
+                    // add new record to trashToTrashtype
+                    val stmt = conn
+                        ?.prepareStatement("INSERT INTO ${Tab.TRASH_TO_TYPE}(trash_id, trashtype_name) VALUES (?, ?)")
+                    stmt?.setInt(1, idVal.toInt())
+                    stmt?.setString(2, tp)
+                    stmt?.executeUpdate()
+                }
+            }
+
+            dataToSend = idVal.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        }
+        return dataToSend
+    }
+
     fun insertVehicle(tabName: String, data: String): String{
         var dataToSend: String = ""
         try{
@@ -139,6 +247,115 @@ class DBUtils {
 
         logger.debug(output)
         return output
+    }
+
+    fun updateReport(tabName: String, data: String, idName: String): String{
+        var dataToSend: String = ""
+        try{
+            conn?.autoCommit = false
+
+            var cols = data.split("|")[0]
+            var vals = data.split("|")[1]
+            val idVal = data.split("|")[2]
+
+            val colsArr = ArrayList(cols.split(","))
+            val valsArr = ArrayList(vals.split("`"))
+            val indx = colsArr.indexOf("${Tab.TRASH}.trash_types")
+            val trashTypes = valsArr[indx]
+            colsArr.remove("${Tab.TRASH}.trash_types")
+            cols = colsArr.joinToString(",")
+            valsArr.removeAt(indx)
+            vals = valsArr.joinToString("`")
+
+            // clean login_report, vehicle_id and cleaningcrew_id
+            val statement = conn?.createStatement()
+            val updateQuery = "UPDATE ${Tab.TRASH} SET user_login = NULL, vehicle_id = NULL, cleaningcrew_id = NULL WHERE id = $idVal"
+            statement?.executeUpdate(updateQuery)
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (cols.split(",")[i-1] == "${Tab.TRASH}.creation_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.collection_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.trash_size"){
+                    stmt?.setInt(i, valuesToUpdate[i-1].toInt())
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.user_login"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                    stmtFK?.setString(1, valuesToUpdate[i - 1])
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()) {
+                        stmt?.setString(i, valuesToUpdate[i-1])
+                    } else {
+                        return "ERROR: User not found in database"
+                    }
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.vehicle_id"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.VEHICLE} WHERE id = ?")
+                    stmtFK?.setInt(1, valuesToUpdate[i - 1].toInt())
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()) {
+                        stmt?.setInt(i, valuesToUpdate[i-1].toInt())
+                    } else {
+                        return "ERROR: Vehicle not found in database"
+                    }
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.cleaningcrew_id"){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.CLEAN_CREW} WHERE id = ?")
+                    stmtFK?.setInt(1, valuesToUpdate[i - 1].toInt())
+                    val rs = stmtFK?.executeQuery()
+                    if (rs!!.next()) {
+                        stmt?.setInt(i, valuesToUpdate[i-1].toInt())
+                    } else {
+                        return "ERROR: Crew not found in database"
+                    }
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            if (colsArr.contains("${Tab.TRASH}.trash_types")){
+                logger.debug(trashTypes)
+                // remove old trashToTrashtype
+                val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
+                stmt?.setInt(1, idVal.toInt())
+                stmt?.executeUpdate()
+                for (tp in trashTypes.split(",")){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                    stmtFK?.setString(1, tp)
+                    val rs = stmtFK?.executeQuery()
+                    if (!rs!!.next()) {
+                        // add new to Trashtype if not exist
+                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                        stmt?.setString(1, tp)
+                        stmt?.executeUpdate()
+                    }
+                    // add new record to trashToTrashtype
+                    val stmt = conn
+                        ?.prepareStatement("INSERT INTO ${Tab.TRASH_TO_TYPE}(trash_id, trashtype_name) VALUES (?, ?)")
+                    stmt?.setInt(1, idVal.toInt())
+                    stmt?.setString(2, tp)
+                    stmt?.executeUpdate()
+                }
+            }
+
+            conn?.commit()
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            conn?.rollback()
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            conn?.rollback()
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        } finally {
+            conn?.autoCommit = true
+        }
+        return dataToSend
     }
 
     fun updateVehicle(tabName: String, data: String, idName: String): String{
@@ -299,7 +516,7 @@ class DBUtils {
     }
 
     private fun makeCallString(valuesToUpdate: String) : String{
-        return "CALL `NewTrash`(${valuesToUpdate})"
+        return "{? = call NewTrashFun(${valuesToUpdate})}"
     }
 
     private fun useJoin(fromTabName: String, toTabName:String, joinFromKey: String, joinToKey: String):String{
@@ -358,6 +575,7 @@ class DBUtils {
             "deleteCompany" -> deleteCompany(data)
             "deleteVehicle" -> deleteVehicle(data)
             "deleteWorker" -> deleteWorker(data)
+            "deleteImage" -> deleteImage(data)
 
             "checkUserExist" -> checkUserExist(data)
             "checkUserForLogin" -> checkUserForLogin(data)
@@ -448,6 +666,7 @@ class DBUtils {
 
             while (resultset!!.next()) {
                 var id = resultset.getString("${Tab.TRASH}.id")
+
                 var r2 = conn!!.createStatement().executeQuery("select trashtype_name from trashtotrashtype where trash_id = ${id}")
                 var types = ""
                 while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
@@ -458,7 +677,11 @@ class DBUtils {
                 dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.collection_date")?.toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.user_login_report")?.toString().plus(";")
-                dataToSend += types.toString()
+                dataToSend += resultset.getString("${Tab.TRASH}.user_login")?.toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.vehicle_id")?.toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.cleaningcrew_id")?.toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.collection_localization")?.toString().plus(";")
+                dataToSend += types.toString().plus(";")
                 dataToSend += "\n"
             }
         }
@@ -731,56 +954,33 @@ class DBUtils {
 
     private fun addTrashByFunc(data: String): String{
         logger.debug(data)
-        var stmt: Statement? = null
         var dataToSend: String = ""
         try{
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
             var valueToInsert = data.split("|")[0]
-            var rowsAffected = stmt!!.executeUpdate(makeCallString(valueToInsert))
-            println("$rowsAffected row(s) inserted in Trash.")
-
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
+            logger.debug(makeCallString(valueToInsert))
+            val stmt = conn?.prepareCall(makeCallString(valueToInsert))
+            stmt?.registerOutParameter(1, Types.INTEGER)
+            stmt?.execute()
+            logger.debug("Row inserted in Trash.")
+            return stmt!!.getInt(1).toString()
         }
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            return "ERROR: Some error occured during updating. Try again later."
         }
         return dataToSend
     }
 
     private fun addReport(data: String): String{
         logger.debug(data)
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("\n")[0]
-            var valueToInsert = data.split("\n")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.TRASH,variablesToInsert, valueToInsert))
-            println("$rowsAffected row(s) inserted in Trash.")
-
-            if(data.split("\n").size > 2) {
-                imageVariableToInsert = data.split("\n")[2]
-                imageValueToInsert = data.split("\n")[3]
-                var imageRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.IMAGE,imageVariableToInsert, imageValueToInsert))
-                println("$imageRowsAffected row(s) inserted in Image.")
-            }
-            dataToSend = rowsAffected.toString()
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+        val tabName = Tab.TRASH
+        val idName = "id"
+        val output = insertReport(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        else return output
     }
 
     private fun addGroup(data: String): String{
@@ -934,29 +1134,12 @@ class DBUtils {
     }
 
     private fun updateReport(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.TRASH,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in Report.")
-
-            dataToSend = rowsAffected.toString()
-
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+        logger.debug(data)
+        val tabName = Tab.TRASH
+        val idName = "id"
+        val output = updateReport(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        else return output
     }
 
     private fun updateGroup(data: String): String{
@@ -1307,6 +1490,40 @@ class DBUtils {
         }
         logger.debug(image.size.toString())
         return image
+    }
+
+    fun getImageById(imageId: String): ByteArray {
+        var image: ByteArray = byteArrayOf()
+        // Prepare the SQL query
+        try {
+            val sql = "SELECT * FROM ${Tab.IMAGE} WHERE id = ?"
+            val stmt = conn?.prepareStatement(sql)
+            stmt?.setInt(1, imageId.toInt())
+            stmt?.executeQuery().use { resultSet ->
+                while (resultSet?.next()!!) {
+                    image = resultSet.getBytes("content")
+                }
+            }
+        } catch(ex: Exception){
+            ex.printStackTrace()
+        }
+        logger.debug(image.size.toString())
+        return image
+    }
+
+    fun deleteImage(data: String): String{
+        val imageId = data
+        // Prepare the SQL query
+        try {
+            val sql = "DELETE FROM ${Tab.IMAGE} WHERE id = ?"
+            val stmt = conn?.prepareStatement(sql)
+            stmt?.setInt(1, imageId.toInt())
+            stmt?.executeUpdate()
+        } catch(ex: Exception){
+            ex.printStackTrace()
+            return "ERROR: Failed to delete the image"
+        }
+        return "Image deleted"
     }
 
 

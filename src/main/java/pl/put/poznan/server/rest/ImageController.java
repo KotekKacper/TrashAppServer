@@ -15,12 +15,13 @@ public class ImageController {
 
     private static final Logger logger = LoggerFactory.getLogger(Controller.class);
 
+    private static final DBUtils db = new DBUtils();
+
     @PostMapping("/image-upload")
     public ResponseEntity<String> handleImageUpload(@RequestParam("trash-id") String trashId, @RequestParam("image") MultipartFile image) {
         try {
             // save the image to a desired location
             byte[] bytes = image.getBytes();
-            DBUtils db = new DBUtils();
             db.uploadImage(trashId, image.getContentType(), bytes);
             logger.debug("Image saved successfully");
             return ResponseEntity.ok("Image uploaded successfully!");
@@ -34,7 +35,12 @@ public class ImageController {
     public byte[] get(@RequestParam(value="trash-id", defaultValue="") String trashId,
                       @RequestParam(value="img-number", defaultValue="") String imgNumber) {
         logger.debug("Image request: "+trashId+", "+imgNumber);
-        DBUtils db = new DBUtils();
         return db.getImages(trashId, imgNumber);
+    }
+
+    @GetMapping("/image-download-by-id")
+    public byte[] getImageById(@RequestParam(value="image-id", defaultValue="") String imageId) {
+        logger.debug("Image request: "+imageId);
+        return db.getImageById(imageId);
     }
 }
