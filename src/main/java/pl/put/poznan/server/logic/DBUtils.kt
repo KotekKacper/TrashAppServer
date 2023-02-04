@@ -252,42 +252,25 @@ class DBUtils {
     fun updateReport(tabName: String, data: String, idName: String): String{
         var dataToSend: String = ""
         try{
+//            conn?.autoCommit = false
+
             var cols = data.split("|")[0]
             var vals = data.split("|")[1]
             val idVal = data.split("|")[2]
 
             val colsArr = ArrayList(cols.split(","))
             val valsArr = ArrayList(vals.split("`"))
-            if (colsArr.contains("${Tab.TRASH}.trash_types")){
-                val indx = colsArr.indexOf("${Tab.TRASH}.trash_types")
-                val trashTypes = valsArr[indx]
-                colsArr.remove("${Tab.TRASH}.trash_types")
-                cols = colsArr.joinToString(",")
-                valsArr.removeAt(indx)
-                vals = valsArr.joinToString("`")
-                logger.debug(trashTypes)
-                // remove old trashToTrashtype
-                val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
-                stmt?.setInt(1, idVal.toInt())
-                stmt?.executeUpdate()
-                for (tp in trashTypes.split(",")){
-                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
-                    stmtFK?.setString(1, tp)
-                    val rs = stmtFK?.executeQuery()
-                    if (!rs!!.next()) {
-                        // add new to Trashtype if not exist
-                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
-                        stmt?.setString(1, tp)
-                        stmt?.executeUpdate()
-                    }
-                    // add new record to trashToTrashtype
-                    val stmt = conn
-                        ?.prepareStatement("INSERT INTO ${Tab.TRASH_TO_TYPE}(trash_id, trashtype_name) VALUES (?, ?)")
-                    stmt?.setInt(1, idVal.toInt())
-                    stmt?.setString(2, tp)
-                    stmt?.executeUpdate()
-                }
-            }
+            val indx = colsArr.indexOf("${Tab.TRASH}.trash_types")
+            val trashTypes = valsArr[indx]
+            colsArr.remove("${Tab.TRASH}.trash_types")
+            cols = colsArr.joinToString(",")
+            valsArr.removeAt(indx)
+            vals = valsArr.joinToString("`")
+
+            // clean login_report, vehicle_id and cleaningcrew_id
+            val statement = conn?.createStatement()
+            val updateQuery = "UPDATE ${Tab.TRASH} SET user_login = NULL, vehicle_id = NULL, cleaningcrew_id = NULL WHERE id = $idVal"
+            statement?.executeUpdate(updateQuery)
 
             val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
             val valuesToUpdate = vals.split("`")
@@ -332,6 +315,32 @@ class DBUtils {
             }
             val rowsAffected = stmt?.executeUpdate()
             logger.debug("$rowsAffected row updated.")
+
+            if (colsArr.contains("${Tab.TRASH}.trash_types")){
+                logger.debug(trashTypes)
+                // remove old trashToTrashtype
+                val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
+                stmt?.setInt(1, idVal.toInt())
+                stmt?.executeUpdate()
+                for (tp in trashTypes.split(",")){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                    stmtFK?.setString(1, tp)
+                    val rs = stmtFK?.executeQuery()
+                    if (!rs!!.next()) {
+                        // add new to Trashtype if not exist
+                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                        stmt?.setString(1, tp)
+                        stmt?.executeUpdate()
+                    }
+                    // add new record to trashToTrashtype
+                    val stmt = conn
+                        ?.prepareStatement("INSERT INTO ${Tab.TRASH_TO_TYPE}(trash_id, trashtype_name) VALUES (?, ?)")
+                    stmt?.setInt(1, idVal.toInt())
+                    stmt?.setString(2, tp)
+                    stmt?.executeUpdate()
+                }
+            }
+
 
             dataToSend = rowsAffected.toString()
         } catch (ex: SQLIntegrityConstraintViolationException){
@@ -658,19 +667,16 @@ class DBUtils {
                 var types = ""
                 while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
 
-                var r3 = conn!!.createStatement().executeQuery("select id from image where trash_id = ${id}")
-                var images = arrayListOf<String>()
-                while (r3!!.next()) {images.add(r3.getInt("id").toString());}
-                var imgJoined = images.joinToString(",")
-
                 dataToSend += id.plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.creation_date").toString().plus(";")
                 dataToSend += resultset.getInt("${Tab.TRASH}.trash_size").toString().plus(";")
                 dataToSend += resultset.getTimestamp("${Tab.TRASH}.collection_date")?.toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.user_login_report")?.toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.user_login")?.toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.vehicle_id")?.toString().plus(";")
+                dataToSend += resultset.getString("${Tab.TRASH}.cleaningcrew_id")?.toString().plus(";")
                 dataToSend += types.toString().plus(";")
-                dataToSend += imgJoined.toString()
                 dataToSend += "\n"
             }
         }
