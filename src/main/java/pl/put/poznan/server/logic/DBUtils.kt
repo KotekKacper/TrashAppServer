@@ -269,7 +269,8 @@ class DBUtils {
 
             // clean login_report, vehicle_id and cleaningcrew_id
             val statement = conn?.createStatement()
-            val updateQuery = "UPDATE ${Tab.TRASH} SET user_login = NULL, vehicle_id = NULL, cleaningcrew_id = NULL WHERE id = $idVal"
+            val updateQuery = "UPDATE ${Tab.TRASH} SET user_login = NULL, vehicle_id = NULL, cleaningcrew_id = NULL," +
+                                "collection_date = NULL, collection_localization = NULL WHERE id = $idVal"
             statement?.executeUpdate(updateQuery)
 
             val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
@@ -280,6 +281,12 @@ class DBUtils {
                     stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
                 } else if (cols.split(",")[i-1] == "${Tab.TRASH}.collection_date"){
                     stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else if (cols.split(",")[i-1] == "${Tab.TRASH}.collection_localization"){
+                    if (valuesToUpdate[i-1] == ","){
+                        stmt?.setString(i, null)
+                    } else{
+                        stmt?.setString(i, valuesToUpdate[i-1])
+                    }
                 } else if (cols.split(",")[i-1] == "${Tab.TRASH}.trash_size"){
                     stmt?.setInt(i, valuesToUpdate[i-1].toInt())
                 } else if (cols.split(",")[i-1] == "${Tab.TRASH}.user_login"){
