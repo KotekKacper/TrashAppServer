@@ -1193,30 +1193,30 @@ class DBUtils {
 //
 //    }
 
-    private fun updateUser(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
-    }
+//    private fun updateUser(data: String): String{
+//        var stmt: Statement? = null
+//        var dataToSend: String = ""
+//        try{
+//            var imageVariableToInsert: String? = ""
+//            var imageValueToInsert: String? = ""
+//            stmt = conn!!.createStatement()
+//            var valuesToUpdate = data.split("|")[0]
+//            var whereCondition = data.split("|")[1]
+//            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+//            println("$rowsAffected row(s) updated in User.")
+//
+//            dataToSend = rowsAffected.toString()
+//            if(rowsAffected==0)
+//            {
+//                dataToSend = "ERROR: Some error occured during updating. Try again later."
+//            }
+//        }
+//        catch(ex: Exception)
+//        {
+//            ex.printStackTrace()
+//        }
+//        return dataToSend
+//    }
 
     private fun updateCompany(data: String): String{
         logger.debug(data)
@@ -1246,7 +1246,43 @@ class DBUtils {
         else return output
     }
 
+    private fun updateUser(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.USER
+        val idName = "login"
+        val output = updateUser(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: The same login"
+        else return output
+    }
+    fun updateUser(tabName: String, data: String, idName1: String): String{
+        var dataToSend: String = ""
+        try{
 
+
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val idVal1 = "'${data.split("|")[2]}'"
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName1, idVal1))
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        }
+        return dataToSend
+    }
     private fun deleteReport(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
