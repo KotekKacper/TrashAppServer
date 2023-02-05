@@ -723,16 +723,20 @@ class DBUtils {
             resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup where user_login = '${data}'")
 
             while (resultset!!.next()) {
-                var id = resultset.getString("cleaningcrew_id")
-                var temp:String = ""
-                var resultset1 = conn!!.createStatement()
+                val id = resultset.getString("cleaningcrew_id")
+                val resultset1 = conn!!.createStatement()
                     .executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew where id = ${id}")
+                val resultset2 = conn!!.createStatement()
+                    .executeQuery("select user_login from usergroup where cleaningcrew_id = ${id}")
+                var groupMembers:String = ""
+                while (resultset2!!.next()) {groupMembers+=resultset2.getString("user_login").plus(',');}
+
                 while (resultset1!!.next()) {
                     dataToSend += id.plus(";")
                     dataToSend += resultset1.getString("crew_name").plus(";")
                     dataToSend += resultset1.getString("meet_date").plus(";")
                     dataToSend += resultset1.getString("meeting_localization").plus(";")
-                    dataToSend += temp.plus(";")
+                    dataToSend += groupMembers.plus(";")
 
                     dataToSend += "|"
                 }
