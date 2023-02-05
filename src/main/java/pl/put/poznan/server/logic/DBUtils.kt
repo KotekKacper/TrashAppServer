@@ -196,7 +196,59 @@ class DBUtils {
             ex.printStackTrace()
             return "ERROR: Adding failed"
         }
+        return dataToSend
+    }
 
+    fun insertPoint(tabName: String, data: String): String{
+        var dataToSend: String = ""
+        try{
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
+            val valuesToInsert = data.split("|")[1].split("`")
+            for (i in 1..valuesToInsert.size){
+                logger.debug("$i : ${valuesToInsert[i-1]}")
+                stmt?.setString(i, valuesToInsert[i-1])
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
+
+            val trashTypes = data.split("|")[3]
+            val idVal = if (data.split("|")[2] == "")
+                                    data.split("|")[1].split("`")[0]
+                               else data.split("|")[2]
+            if (trashTypes != ""){
+                logger.debug(trashTypes)
+                // remove old trashToTrashtype
+                val stmt = conn?.prepareStatement("DELETE FROM ${Tab.COLLECTING_POINT_TO_TYPE} WHERE trashcollectingpoint_localization = ?")
+                stmt?.setString(1, idVal)
+                stmt?.executeUpdate()
+                for (tp in trashTypes.split(",")){
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                    stmtFK?.setString(1, tp)
+                    val rs = stmtFK?.executeQuery()
+                    if (!rs!!.next()) {
+                        // add new to Trashtype if not exist
+                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                        stmt?.setString(1, tp)
+                        stmt?.executeUpdate()
+                    }
+                    // add new record to trashToTrashtype
+                    val stmt = conn
+                        ?.prepareStatement("INSERT INTO ${Tab.COLLECTING_POINT_TO_TYPE}(trashcollectingpoint_localization, trashtype_name) VALUES (?, ?)")
+                    stmt?.setString(1, idVal)
+                    stmt?.setString(2, tp)
+                    stmt?.executeUpdate()
+                }
+            }
+
+            dataToSend = rowsAffected.toString()
+        }catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        }catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Insertion failed"
+        }
         return dataToSend
     }
 
@@ -493,7 +545,60 @@ class DBUtils {
             ex.printStackTrace()
             return "ERROR: Update failed"
         }
+        return dataToSend
+    }
 
+    fun updateCollectingPoint(tabName: String, data: String, idName: String): String {
+        var dataToSend: String = ""
+        try {
+            val trashTypes = data.split("|")[3]
+            val idVal = if (data.split("|")[2] == "")
+                data.split("|")[1].split("`")[0]
+            else data.split("|")[2]
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, data.split("|")[0], idName, "'$idVal'"))
+            val valuesToInsert = data.split("|")[1].split("`")
+            for (i in 1..valuesToInsert.size) {
+                logger.debug("$i : ${valuesToInsert[i - 1]}")
+                stmt?.setString(i, valuesToInsert[i - 1])
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
+
+            if (trashTypes != "") {
+                logger.debug(trashTypes)
+                // remove old trashToTrashtype
+                val stmt =
+                    conn?.prepareStatement("DELETE FROM ${Tab.COLLECTING_POINT_TO_TYPE} WHERE trashcollectingpoint_localization = ?")
+                stmt?.setString(1, idVal)
+                stmt?.executeUpdate()
+                for (tp in trashTypes.split(",")) {
+                    val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                    stmtFK?.setString(1, tp)
+                    val rs = stmtFK?.executeQuery()
+                    if (!rs!!.next()) {
+                        // add new to Trashtype if not exist
+                        val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                        stmt?.setString(1, tp)
+                        stmt?.executeUpdate()
+                    }
+                    // add new record to trashToTrashtype
+                    val stmt = conn
+                        ?.prepareStatement("INSERT INTO ${Tab.COLLECTING_POINT_TO_TYPE}(trashcollectingpoint_localization, trashtype_name) VALUES (?, ?)")
+                    stmt?.setString(1, idVal)
+                    stmt?.setString(2, tp)
+                    stmt?.executeUpdate()
+                }
+            }
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException) {
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch (ex: Exception) {
+            ex.printStackTrace()
+            return "ERROR: Insertion failed"
+        }
         return dataToSend
     }
 
@@ -701,7 +806,7 @@ class DBUtils {
             "updateTrash" -> updateTrash(data)
             "updateReport" -> updateReport(data)
             "updateGroup" -> updateGroup(data)
-//            "updateCollectingPoint" -> updateCollectingPoint(data)
+            "updateCollectingPoint" -> updateCollectingPoint(data)
             "updateUser" -> updateUser(data)
             "updateCompany" -> updateCompany(data)
             "updateVehicle" -> updateVehicle(data)
@@ -885,12 +990,17 @@ class DBUtils {
             //resultset = stmt!!.executeQuery("select TrashCollectingpoint.localization, TrashCollectingpoint.bus_empty, TrashCollectingpoint.processing_type from TrashCollectingPoint")
 
             while (resultset!!.next()) {
-                //var res2 = stmt!!.executeQuery("select Trash.id from TrashCollectingPoint LEFT JOIN Trash ON TrashCollectingPoint.localization = Trash.TrashCollectingPoint GROUP BY TrashCollectingPoint.localization")
+                val loc = resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization")
 
-                dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.localization").plus(";")
+                var r2 = conn!!.createStatement().executeQuery("select trashtype_name from collectingpointtotrashtype where trashcollectingpoint_localization = '${loc}'")
+                var types = ""
+                while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
+
+                dataToSend += loc.plus(";")
                 dataToSend += resultset.getInt("${Tab.TRASH_COLLECT_POINT}.bus_empty").toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH_COLLECT_POINT}.processing_type").plus(";")
                 dataToSend += resultset.getString("GROUP_CONCAT(${Tab.TRASH}.id SEPARATOR '-')").plus(";")
+                dataToSend += types
                 dataToSend += "\n"
             }
         }
@@ -1136,8 +1246,8 @@ class DBUtils {
 
     private fun addCollectingPoint(data: String): String{
         logger.debug(data)
-        val tabName = Tab.CLEAN_COMPANY
-        val output = insertAny(tabName, data)
+        val tabName = Tab.TRASH_COLLECT_POINT
+        val output = insertPoint(tabName, data)
         if (output == "ERROR: Duplicate key") return "ERROR: Point already in database"
         else return output
     }
@@ -1272,34 +1382,39 @@ class DBUtils {
         else return output
     }
 
-//    private fun updateCollectingPoint(data: String): String{
-//
-//    }
-
-    private fun updateUser(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in User.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+    private fun updateCollectingPoint(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.TRASH_COLLECT_POINT
+        val idName = "localization"
+        val output = updateCollectingPoint(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Point already in database"
+        else return output
     }
+
+//    private fun updateUser(data: String): String{
+//        var stmt: Statement? = null
+//        var dataToSend: String = ""
+//        try{
+//            var imageVariableToInsert: String? = ""
+//            var imageValueToInsert: String? = ""
+//            stmt = conn!!.createStatement()
+//            var valuesToUpdate = data.split("|")[0]
+//            var whereCondition = data.split("|")[1]
+//            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.USER,valuesToUpdate, whereCondition))
+//            println("$rowsAffected row(s) updated in User.")
+//
+//            dataToSend = rowsAffected.toString()
+//            if(rowsAffected==0)
+//            {
+//                dataToSend = "ERROR: Some error occured during updating. Try again later."
+//            }
+//        }
+//        catch(ex: Exception)
+//        {
+//            ex.printStackTrace()
+//        }
+//        return dataToSend
+//    }
 
     private fun updateCompany(data: String): String{
         logger.debug(data)
@@ -1329,7 +1444,43 @@ class DBUtils {
         else return output
     }
 
+    private fun updateUser(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.USER
+        val idName = "login"
+        val output = updateUser(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: The same login"
+        else return output
+    }
+    fun updateUser(tabName: String, data: String, idName1: String): String{
+        var dataToSend: String = ""
+        try{
 
+
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val idVal1 = "'${data.split("|")[2]}'"
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName1, idVal1))
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        }
+        return dataToSend
+    }
     private fun deleteReport(data: String): String{
         var stmt: Statement? = null
         var dataToSend: String = ""
@@ -1442,11 +1593,11 @@ class DBUtils {
 
                 imgStmt.executeUpdate()
             }
-            conn!!.prepareStatement("DELETE FROM ${Tab.TRASH_COLLECT_POINT} WHERE trash_id IN (SELECT id FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}')").use { imgStmt ->
-
-                imgStmt.executeUpdate()
-            }
             conn!!.prepareStatement("DELETE FROM ${Tab.TRASH} WHERE user_login_report = '${whereCondition}'").use { trashStmt ->
+
+                trashStmt.executeUpdate()
+            }
+            conn!!.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE user_login = '${whereCondition}'").use { trashStmt ->
 
                 trashStmt.executeUpdate()
             }
@@ -1477,7 +1628,7 @@ class DBUtils {
             stmt = conn!!.createStatement()
 
             var whereCondition = data
-            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.WORKER, whereCondition))
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.CLEAN_COMPANY, whereCondition))
             println("$rowsAffected row(s) updated in Company.")
 
             dataToSend = rowsAffected.toString()
@@ -1489,6 +1640,9 @@ class DBUtils {
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            if(ex.message?.contains("FOREIGN")!!)
+                return "ERROR: Company can't be deleted. It still has workers. Fire them and try again."
+
             return "ERROR: Company could not be deleted. Please, try again later."
         }
         return dataToSend
