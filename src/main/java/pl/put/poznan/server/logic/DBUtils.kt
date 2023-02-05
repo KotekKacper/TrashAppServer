@@ -136,6 +136,70 @@ class DBUtils {
         return dataToSend
     }
 
+    fun insertGroup(tabName: String, data: String): String{
+        var dataToSend: String = ""
+        try{
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val members = data.split("|")[2].split(",")
+
+            for (member in members){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                stmtFK?.setString(1, member)
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Member not found in database"
+                }
+            }
+
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, cols), Statement.RETURN_GENERATED_KEYS)
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (cols.split(",")[i-1] == "${Tab.CLEAN_CREW}.meet_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+            val resultSet = stmt?.generatedKeys
+
+            var idVal = 0
+            if (resultSet?.next() == true) {
+                val generatedId = resultSet.getInt(1)
+                println("Generated ID: $generatedId")
+                idVal = generatedId
+            }
+
+            val stmtFK = conn
+                ?.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE cleaningcrew_id = ?")
+            stmtFK?.setInt(1, idVal.toInt())
+            stmtFK?.executeUpdate()
+            for (member in members){
+                val stmtFK = conn
+                    ?.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES(?, ?)")
+                stmtFK?.setString(1, member)
+                stmtFK?.setInt(2, idVal.toInt())
+                stmtFK?.executeUpdate()
+            }
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Adding failed"
+        }
+
+        return dataToSend
+    }
+
     fun insertVehicle(tabName: String, data: String): String{
         var dataToSend: String = ""
         try{
@@ -1064,32 +1128,10 @@ class DBUtils {
 
     private fun addGroup(data: String): String{
         logger.debug(data)
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("|")[1]
-            var valueToInsert = data.split("|")[2]
-            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.CLEAN_CREW,variablesToInsert, valueToInsert))
-
-            var resultSet = stmt!!.executeQuery("SELECT id FROM ${Tab.CLEAN_CREW} WHERE crew_name = ${data.split("|")[0].split(",")[1]}")
-
-            while(resultSet.next())
-            conn!!.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES (${data.split("|")[0].split(",")[0]},${resultSet.getInt("id")} )").use { imgStmt ->
-
-                imgStmt.executeUpdate()
-            }
-
-            println("$rowsAffected row(s) inserted in Group.")
-
-            dataToSend = rowsAffected.toString()
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+        val tabName = Tab.CLEAN_CREW
+        val output = insertGroup(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        else return output
     }
 
     private fun addCollectingPoint(data: String): String{
