@@ -136,6 +136,69 @@ class DBUtils {
         return dataToSend
     }
 
+    fun insertGroup(tabName: String, data: String): String{
+        var dataToSend: String = ""
+        try{
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val members = data.split("|")[2].split(",")
+
+            for (member in members){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                stmtFK?.setString(1, member)
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Member not found in database"
+                }
+            }
+
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, cols), Statement.RETURN_GENERATED_KEYS)
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (cols.split(",")[i-1] == "${Tab.CLEAN_CREW}.meet_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+            val resultSet = stmt?.generatedKeys
+
+            var idVal = 0
+            if (resultSet?.next() == true) {
+                val generatedId = resultSet.getInt(1)
+                println("Generated ID: $generatedId")
+                idVal = generatedId
+            }
+
+            val stmtFK = conn
+                ?.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE cleaningcrew_id = ?")
+            stmtFK?.setInt(1, idVal.toInt())
+            stmtFK?.executeUpdate()
+            for (member in members){
+                val stmtFK = conn
+                    ?.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES(?, ?)")
+                stmtFK?.setString(1, member)
+                stmtFK?.setInt(2, idVal.toInt())
+                stmtFK?.executeUpdate()
+            }
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Adding failed"
+        }
+        return dataToSend
+    }
+
     fun insertPoint(tabName: String, data: String): String{
         var dataToSend: String = ""
         try{
@@ -425,6 +488,62 @@ class DBUtils {
             return "ERROR: Update failed"
         } finally {
             conn?.autoCommit = true
+        }
+        return dataToSend
+    }
+
+    fun updateGroup(tabName: String, data: String, idName: String): String{
+        var dataToSend: String = ""
+        try{
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val members = data.split("|")[2].split(",")
+            val idVal = data.split("|")[3]
+
+            for (member in members){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                stmtFK?.setString(1, member)
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Member not found in database"
+                }
+            }
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (cols.split(",")[i-1] == "${Tab.CLEAN_CREW}.meet_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            val stmtFK = conn
+                ?.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE cleaningcrew_id = ?")
+            stmtFK?.setInt(1, idVal.toInt())
+            stmtFK?.executeUpdate()
+            for (member in members){
+                val stmtFK = conn
+                    ?.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES(?, ?)")
+                stmtFK?.setString(1, member)
+                stmtFK?.setInt(2, idVal.toInt())
+                stmtFK?.executeUpdate()
+            }
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
         }
         return dataToSend
     }
@@ -830,16 +949,20 @@ class DBUtils {
             resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup where user_login = '${data}'")
 
             while (resultset!!.next()) {
-                var id = resultset.getString("cleaningcrew_id")
-                var temp:String = ""
-                var resultset1 = conn!!.createStatement()
+                val id = resultset.getString("cleaningcrew_id")
+                val resultset1 = conn!!.createStatement()
                     .executeQuery("select id, crew_name, meet_date, meeting_localization from cleaningcrew where id = ${id}")
+                val resultset2 = conn!!.createStatement()
+                    .executeQuery("select user_login from usergroup where cleaningcrew_id = ${id}")
+                var groupMembers:String = ""
+                while (resultset2!!.next()) {groupMembers+=resultset2.getString("user_login").plus(',');}
+
                 while (resultset1!!.next()) {
                     dataToSend += id.plus(";")
                     dataToSend += resultset1.getString("crew_name").plus(";")
                     dataToSend += resultset1.getString("meet_date").plus(";")
                     dataToSend += resultset1.getString("meeting_localization").plus(";")
-                    dataToSend += temp.plus(";")
+                    dataToSend += groupMembers.plus(";")
 
                     dataToSend += "|"
                 }
@@ -1115,32 +1238,10 @@ class DBUtils {
 
     private fun addGroup(data: String): String{
         logger.debug(data)
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("|")[1]
-            var valueToInsert = data.split("|")[2]
-            var rowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.CLEAN_CREW,variablesToInsert, valueToInsert))
-
-            var resultSet = stmt!!.executeQuery("SELECT id FROM ${Tab.CLEAN_CREW} WHERE crew_name = ${data.split("|")[0].split(",")[1]}")
-
-            while(resultSet.next())
-            conn!!.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES (${data.split("|")[0].split(",")[0]},${resultSet.getInt("id")} )").use { imgStmt ->
-
-                imgStmt.executeUpdate()
-            }
-
-            println("$rowsAffected row(s) inserted in Group.")
-
-            dataToSend = rowsAffected.toString()
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+        val tabName = Tab.CLEAN_CREW
+        val output = insertGroup(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        else return output
     }
 
     private fun addCollectingPoint(data: String): String{
@@ -1273,32 +1374,12 @@ class DBUtils {
     }
 
     private fun updateGroup(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[2]
-            var whereCondition = data.split("|")[1]
-            var whereText = ""
-            for(i in 0..valuesToUpdate.split(",").size-2)
-                whereText = whereText.plus(whereCondition.split(",")[i].plus("=").plus(valuesToUpdate.split(",")[i])).plus(", ")
-            whereText = whereText.plus(valuesToUpdate.split(",")[3])
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.CLEAN_CREW,whereText, "id = ${data.split("|")[0].split(",")[1]}"))
-            println("$rowsAffected row(s) updated in Group.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+        logger.debug(data)
+        val tabName = Tab.CLEAN_CREW
+        val idName = "id"
+        val output = updateGroup(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Group already in database"
+        else return output
     }
 
     private fun updateCollectingPoint(data: String): String{
