@@ -1816,12 +1816,26 @@ class DBUtils {
         var resultset: ResultSet? = null
         var dataToSend: String = ""
         try{
-            stmt = conn!!.createStatement()
+
             val dataFrom = data.split(", ")
-            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login = ${dataFrom[0]} AND password = ${dataFrom[1]}"))
+            stmt = conn!!.prepareStatement("SELECT COUNT(*) FROM ${Tab.USER} WHERE login = ? AND password = ?")
+            stmt.setString(1, dataFrom[0])
+            stmt.setString(2, dataFrom[1])
+            resultset = stmt!!.executeQuery()
 
             while (resultset!!.next()) {
-                dataToSend = resultset.getInt("COUNT(*)").toString()
+                val exists = resultset.getInt("COUNT(*)")
+                if (exists == 1){
+                    val s2 = conn!!.prepareStatement("select role_name from usertorole where user_login = ?")
+                    s2.setString(1, dataFrom[0])
+                    val rs2 = s2.executeQuery()
+                    var roles = ""
+                    while (rs2!!.next()) {roles+=rs2.getString("role_name").plus(',');}
+                    logger.debug("Roles: ${roles}")
+                    dataToSend = roles
+                } else {
+                    dataToSend = exists.toString()
+                }
             }
             if(dataToSend.equals("0"))
             {
