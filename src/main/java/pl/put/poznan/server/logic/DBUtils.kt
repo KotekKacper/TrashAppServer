@@ -376,6 +376,63 @@ class DBUtils {
         return dataToSend
     }
 
+    fun updateGroup(tabName: String, data: String, idName: String): String{
+        var dataToSend: String = ""
+        try{
+            val cols = data.split("|")[0]
+            val vals = data.split("|")[1]
+            val members = data.split("|")[2].split(",")
+            val idVal = data.split("|")[3]
+
+            for (member in members){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                stmtFK?.setString(1, member)
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Member not found in database"
+                }
+            }
+
+            val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
+            val valuesToUpdate = vals.split("`")
+            for (i in 1..valuesToUpdate.size){
+                logger.debug("$i : ${valuesToUpdate[i-1]}")
+                if (cols.split(",")[i-1] == "${Tab.CLEAN_CREW}.meet_date"){
+                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                } else{
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                }
+            }
+            val rowsAffected = stmt?.executeUpdate()
+            logger.debug("$rowsAffected row updated.")
+
+            val stmtFK = conn
+                ?.prepareStatement("DELETE FROM ${Tab.USER_GROUP} WHERE cleaningcrew_id = ?")
+            stmtFK?.setInt(1, idVal.toInt())
+            stmtFK?.executeUpdate()
+            for (member in members){
+                val stmtFK = conn
+                    ?.prepareStatement("INSERT INTO ${Tab.USER_GROUP}(user_login, cleaningcrew_id) VALUES(?, ?)")
+                stmtFK?.setString(1, member)
+                stmtFK?.setInt(2, idVal.toInt())
+                stmtFK?.executeUpdate()
+            }
+
+            dataToSend = rowsAffected.toString()
+        } catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        } catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Update failed"
+        }
+
+        return dataToSend
+    }
+
     fun updateVehicle(tabName: String, data: String, idName: String): String{
         var dataToSend: String = ""
         try{
@@ -1165,32 +1222,12 @@ class DBUtils {
     }
 
     private fun updateGroup(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[2]
-            var whereCondition = data.split("|")[1]
-            var whereText = ""
-            for(i in 0..valuesToUpdate.split(",").size-2)
-                whereText = whereText.plus(whereCondition.split(",")[i].plus("=").plus(valuesToUpdate.split(",")[i])).plus(", ")
-            whereText = whereText.plus(valuesToUpdate.split(",")[3])
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.CLEAN_CREW,whereText, "id = ${data.split("|")[0].split(",")[1]}"))
-            println("$rowsAffected row(s) updated in Group.")
-
-            dataToSend = rowsAffected.toString()
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
-            }
-        }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-        }
-        return dataToSend
+        logger.debug(data)
+        val tabName = Tab.CLEAN_CREW
+        val idName = "id"
+        val output = updateGroup(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Group already in database"
+        else return output
     }
 
 //    private fun updateCollectingPoint(data: String): String{
