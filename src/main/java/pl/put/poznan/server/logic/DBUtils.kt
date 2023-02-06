@@ -1097,7 +1097,7 @@ class DBUtils {
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("nip").plus(";")
                 dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
+                dataToSend += resultset.getString("phone").plus(";")
                 dataToSend += resultset.getString("country").plus(";")
                 dataToSend += resultset.getString("city").plus(";")
                 dataToSend += resultset.getString("street").plus(";")
