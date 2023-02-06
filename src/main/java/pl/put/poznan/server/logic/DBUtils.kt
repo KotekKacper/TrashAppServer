@@ -1093,7 +1093,11 @@ class DBUtils {
                 dataToSend += resultset.getInt("phone").toString().plus(";")
                 dataToSend += resultset.getString("country").plus(";")
                 dataToSend += resultset.getString("city").plus(";")
+                dataToSend += resultset.getString("district").plus(";")
                 dataToSend += resultset.getString("street").plus(";")
+                dataToSend += resultset.getString("flat_number").plus(";")
+                dataToSend += resultset.getString("post_code").plus(";")
+                dataToSend += resultset.getString("house_number").plus(";")
                 dataToSend += "\n"
             }
         }
