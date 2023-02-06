@@ -696,7 +696,10 @@ class DBUtils {
         try{
             val cols = data.split("|")[0]
             val vals = data.split("|")[1]
-            val idVal = data.split("|")[2]
+            var idVal = data.split("|")[2]
+            if (idName == "role_name"){
+                idVal = "'${idVal}'"
+            }
 
             val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
             val valuesToUpdate = vals.split("`")
@@ -802,6 +805,7 @@ class DBUtils {
             "addCompany" -> addCompany(data)
             "addVehicle" -> addVehicle(data)
             "addWorker" -> addWorker(data)
+            "addRole" -> addRole(data)
             "addUserRegister" -> addUserRegister(data)
 
             "updateTrash" -> updateTrash(data)
@@ -812,6 +816,7 @@ class DBUtils {
             "updateCompany" -> updateCompany(data)
             "updateVehicle" -> updateVehicle(data)
             "updateWorker" -> updateWorker(data)
+            "updateRole" -> updateRole(data)
 
             "deleteReport" -> deleteReport(data)
             "deleteGroup" -> deleteGroup(data)
@@ -1393,6 +1398,14 @@ class DBUtils {
         else return output
     }
 
+    private fun addRole(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.ROLE
+        val output = insertAny(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Role already in database"
+        else return output
+    }
+
 
     private fun updateTrash(data: String): String{
         var stmt: Statement? = null
@@ -1498,6 +1511,15 @@ class DBUtils {
         val idName2 = "birthdate"
         val output = updateWorker(tabName, data, idName1, idName2)
         if (output == "ERROR: Duplicate key") return "ERROR: The same name and birth date"
+        else return output
+    }
+
+    private fun updateRole(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.ROLE
+        val idName = "role_name"
+        val output = updateAny(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: The role already in database"
         else return output
     }
 
