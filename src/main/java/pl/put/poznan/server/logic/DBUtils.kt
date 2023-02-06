@@ -516,7 +516,11 @@ class DBUtils {
             for (i in 1..valuesToUpdate.size){
                 logger.debug("$i : ${valuesToUpdate[i-1]}")
                 if (cols.split(",")[i-1] == "${Tab.CLEAN_CREW}.meet_date"){
-                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                    if (valuesToUpdate[i-1] == "null"){
+                        stmt?.setNull(i, Types.INTEGER)
+                    } else {
+                        stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                    }
                 } else{
                     stmt?.setString(i, valuesToUpdate[i-1])
                 }
