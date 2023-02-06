@@ -911,9 +911,18 @@ class DBUtils {
             while (resultset!!.next()) {
                 var id = resultset.getString("${Tab.TRASH}.id")
 
-                var r2 = conn!!.createStatement().executeQuery("select trashtype_name from trashtotrashtype where trash_id = ${id}")
+                var s2 = conn!!.prepareStatement("select trashtype_name from trashtotrashtype where trash_id = ?")
+                s2.setInt(1, id.toInt())
+                val r2 = s2.executeQuery()
                 var types = ""
                 while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
+
+                var s3 = conn!!.prepareStatement("select id from image where trash_id = ?")
+                s3.setInt(1, id.toInt())
+                val r3 = s3.executeQuery()
+                var images = arrayListOf<String>()
+                while (r3!!.next()) {images.add(r3.getInt("id").toString());}
+                var imgJoined = images.joinToString(",")
 
                 dataToSend += id.plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
@@ -926,6 +935,7 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.TRASH}.cleaningcrew_id")?.toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.collection_localization")?.toString().plus(";")
                 dataToSend += types.toString().plus(";")
+                dataToSend += imgJoined.toString().plus(";")
                 dataToSend += "\n"
             }
         }
