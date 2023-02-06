@@ -99,7 +99,7 @@ class DBUtils {
             }
             logger.debug("$rowsAffected row updated.")
 
-            if (colsArr.contains("${Tab.TRASH}.trash_types")){
+            if (trashTypes.isNotEmpty()){
                 logger.debug(trashTypes)
                 // remove old trashToTrashtype
                 val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
@@ -450,7 +450,7 @@ class DBUtils {
             val rowsAffected = stmt?.executeUpdate()
             logger.debug("$rowsAffected row updated.")
 
-            if (colsArr.contains("${Tab.TRASH}.trash_types")){
+            if (trashTypes.isNotEmpty()){
                 logger.debug(trashTypes)
                 // remove old trashToTrashtype
                 val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
