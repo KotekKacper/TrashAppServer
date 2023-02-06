@@ -825,6 +825,7 @@ class DBUtils {
             "deleteCompany" -> deleteCompany(data)
             "deleteVehicle" -> deleteVehicle(data)
             "deleteWorker" -> deleteWorker(data)
+            "deleteRole" -> deleteRole(data)
             "deleteImage" -> deleteImage(data)
 
             "checkUserExist" -> checkUserExist(data)
@@ -1769,6 +1770,31 @@ class DBUtils {
 
             var whereCondition = data
             var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.WORKER, whereCondition))
+            println("$rowsAffected row(s) updated in Worker.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                return "ERROR: Worker could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Worker could not be deleted. Please, try again later."
+        }
+        return dataToSend
+    }
+
+    private fun deleteRole(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.ROLE, whereCondition))
             println("$rowsAffected row(s) updated in Worker.")
 
             dataToSend = rowsAffected.toString()
