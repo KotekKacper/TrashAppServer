@@ -1222,12 +1222,36 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             var valueToInsert = data.split("|")[0]
+            val trashTypes = data.split("|")[1]
+            logger.debug("Trash types: ${trashTypes}")
             logger.debug(makeCallString(valueToInsert))
             val stmt = conn?.prepareCall(makeCallString(valueToInsert))
             stmt?.registerOutParameter(1, Types.INTEGER)
             stmt?.execute()
             logger.debug("Row inserted in Trash.")
-            return stmt!!.getInt(1).toString()
+
+            val idVal = stmt!!.getInt(1).toString()
+
+            // adding trash types
+            for (tp in trashTypes.split(",")){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                stmtFK?.setString(1, tp)
+                val rs = stmtFK?.executeQuery()
+                if (!rs!!.next()) {
+                    // add new to Trashtype if not exist
+                    val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                    stmt?.setString(1, tp)
+                    stmt?.executeUpdate()
+                }
+                // add new record to trashToTrashtype
+                val stmt = conn
+                    ?.prepareStatement("INSERT INTO ${Tab.TRASH_TO_TYPE}(trash_id, trashtype_name) VALUES (?, ?)")
+                stmt?.setInt(1, idVal.toInt())
+                stmt?.setString(2, tp)
+                stmt?.executeUpdate()
+            }
+
+            return idVal
         }
         catch(ex: Exception)
         {
