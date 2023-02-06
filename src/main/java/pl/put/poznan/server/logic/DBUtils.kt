@@ -791,6 +791,7 @@ class DBUtils {
             "getCompanies" -> getCompanies(data)
             "getVehicles" -> getVehicles(data)
             "getWorkers" -> getWorkers(data)
+            "getRoles" -> getRoles(data)
             "getUserCred" -> getUserCred(data)
 
             "addTrash" -> addTrashByFunc(data)
@@ -1153,6 +1154,28 @@ class DBUtils {
                 dataToSend += resultset.getString("job_end_time").plus(";")
                 dataToSend += resultset.getString("company_nip").plus(";")
                 dataToSend += resultset.getString("vehicle_id")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
+    private fun getRoles(data: String): String{
+        logger.debug(data)
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.ROLE, orderByString = orderBy("role_name")))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("role_name").plus(";")
                 dataToSend += "\n"
             }
         }
