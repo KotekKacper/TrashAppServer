@@ -1031,8 +1031,11 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.USER}.fullname").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.country").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.city").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.district").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.street").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.flat_number").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.house_number").plus(";")
                 dataToSend += resultset.getString("${Tab.ROLE}.role_name").plus(";")
                 dataToSend += "\n"
             }
