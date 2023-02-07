@@ -1041,11 +1041,11 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            var joinString = useJoin(Tab.USER, Tab.USER_TO_ROLE,"login","user_login").plus(useJoin(Tab.USER_TO_ROLE,Tab.ROLE,"role_name","role_name"))
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, stringJoin = joinString, orderByString = orderBy("login")))
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, orderByString = orderBy("login")))
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getString("${Tab.USER}.login").plus(";")
+                val login = resultset.getString("${Tab.USER}.login")
+                dataToSend += login.plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.password").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.email").toString().plus(";")
                 dataToSend += resultset.getInt("${Tab.USER}.phone").toString().plus(";")
@@ -1057,7 +1057,14 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.USER}.flat_number").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.house_number").plus(";")
-                dataToSend += resultset.getString("${Tab.ROLE}.role_name").plus(";")
+
+                val s2 = conn!!.prepareStatement("select role_name from usertorole where user_login = ?")
+                s2.setString(1, login)
+                val r2 = s2.executeQuery()
+                var roles = ""
+                while (r2!!.next()) {roles+=r2.getString("role_name").plus(',');}
+                dataToSend += roles.plus(";")
+
                 dataToSend += "\n"
             }
         }
