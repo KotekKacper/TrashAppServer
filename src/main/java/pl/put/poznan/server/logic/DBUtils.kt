@@ -1444,35 +1444,39 @@ class DBUtils {
         }
         return dataToSend
     }
-
     private fun addUserRegister(data: String): String{
         logger.debug(data)
-        var stmt: Statement? = null
+        val tabName = Tab.USER
+        val idName = "login"
+        val output = insertUserRegister(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Login already in database"
+        else return output
+    }
+    fun insertUserRegister(tabName: String, data: String): String{
         var dataToSend: String = ""
         try{
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("|")[0]
-            var valueToInsert = data.split("|")[1]
-            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
-            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
-            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
-            dataToSend = userRowsAffected.toString()
-            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
-
-            if(userRowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during registration. Try again later."
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
+            val valuesToInsert = data.split("|")[1].split("`")
+            var login = valuesToInsert[0]
+            for (i in 1..valuesToInsert.size){
+                logger.debug("$i : ${valuesToInsert[i-1]}")
+                stmt?.setString(i, valuesToInsert[i-1])
             }
+            val stmt2 = conn?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?,?)")
+            stmt2?.setString(1, login)
+            stmt2?.setString(2, "USER")
+            val rowsAffected = stmt?.executeUpdate()
+            val rowsUserRolesAffected = stmt2?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
 
-
-        }
-        catch (ex: SQLIntegrityConstraintViolationException){
+            dataToSend = rowsAffected.toString()
+        }catch (ex: SQLIntegrityConstraintViolationException){
             ex.printStackTrace()
-            return "ERROR:User with such login exists. \nCreate another login."
-        }
-        catch(ex: Exception)
+            return "ERROR: Duplicate key"
+        }catch(ex: Exception)
         {
             ex.printStackTrace()
+            return "ERROR: Insertion failed"
         }
         return dataToSend
     }
