@@ -159,7 +159,11 @@ class DBUtils {
             for (i in 1..valuesToUpdate.size){
                 logger.debug("$i : ${valuesToUpdate[i-1]}")
                 if (cols.split(",")[i-1] == "${Tab.CLEAN_CREW}.meet_date"){
-                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                    if (valuesToUpdate[i-1] == "null"){
+                        stmt?.setNull(i, Types.INTEGER)
+                    } else {
+                        stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                    }
                 } else{
                     stmt?.setString(i, valuesToUpdate[i-1])
                 }
@@ -913,8 +917,9 @@ class DBUtils {
             stmt = conn!!.createStatement()
             var dataForQuerry = data.split("|")[0]
             var user_login = data.split("|")[1]
+            var role = data.split("|")[2]
 
-            if(!user_login.equals("admin"))
+            if(role != "ADMIN")
                 resultset = stmt!!.executeQuery(makeSelectString(dataForQuerry, Tab.TRASH,whereString = "user_login_report = '${user_login}'",orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
             else
                 resultset = stmt!!.executeQuery(makeSelectString(dataForQuerry, Tab.TRASH,orderByString = orderBy("${Tab.TRASH}.creation_date","DESC")))
@@ -960,14 +965,22 @@ class DBUtils {
 
     private fun getGroups(data: String): String{
         logger.debug(data)
-
-        var stmt: Statement? = null
-        var resultset: ResultSet? = null
         var dataToSend: String = ""
+
         try{
+            var login = data.split("|")[0]
+            var role = data.split("|")[1]
+
+            var stmt: Statement? = null
+            var resultset: ResultSet? = null
+
             stmt = conn!!.createStatement()
 
-            resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup where user_login = '${data}'")
+            if (role == "ADMIN"){
+                resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup")
+            } else {
+                resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup where user_login = '${login}'")
+            }
 
             while (resultset!!.next()) {
                 val id = resultset.getString("cleaningcrew_id")
