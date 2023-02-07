@@ -2104,7 +2104,6 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
         var resultset: ResultSet? = null
         var dataToSend: String = ""
         try{
-
             val dataFrom = data.split(", ")
             stmt = conn!!.prepareStatement("SELECT COUNT(*) FROM ${Tab.USER} WHERE login = ? AND password = ?")
             stmt.setString(1, dataFrom[0])
