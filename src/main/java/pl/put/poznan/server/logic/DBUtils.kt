@@ -797,6 +797,7 @@ class DBUtils {
             "getReports" -> getReports(data)
             "getGroups" -> getGroups(data)
             "getUsers" -> getUsers(data)
+            "getUser" -> getUser(data)
             "getUserTrash" -> getUserTrash(data)
             "getCollectingPoints" -> getCollectingPoints(data)
             "getCompanies" -> getCompanies(data)
@@ -1056,6 +1057,51 @@ class DBUtils {
         try{
             stmt = conn!!.createStatement()
             resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, orderByString = orderBy("login")))
+
+            while (resultset!!.next()) {
+                val login = resultset.getString("${Tab.USER}.login")
+                dataToSend += login.plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.password").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.email").toString().plus(";")
+                dataToSend += resultset.getInt("${Tab.USER}.phone").toString().plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.fullname").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.country").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.city").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.district").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.street").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.flat_number").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.house_number").plus(";")
+
+                val s2 = conn!!.prepareStatement("select role_name from usertorole where user_login = ?")
+                s2.setString(1, login)
+                val r2 = s2.executeQuery()
+                var roles = ""
+                while (r2!!.next()) {roles+=r2.getString("role_name").plus(',');}
+                dataToSend += roles.plus(";")
+
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+
+        return dataToSend
+    }
+
+    private fun getUser(data: String): String{
+        logger.debug(data)
+
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+            val d = data.split("|")[0]
+            val user = data.split("|")[1]
+            resultset = stmt!!.executeQuery(makeSelectString(d, Tab.USER, whereString = "login = '${user}'", orderByString = orderBy("login")))
 
             while (resultset!!.next()) {
                 val login = resultset.getString("${Tab.USER}.login")
