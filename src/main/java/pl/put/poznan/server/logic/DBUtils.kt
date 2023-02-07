@@ -1539,11 +1539,23 @@ class DBUtils {
     fun updateUser(tabName: String, data: String, idName1: String): String{
         var dataToSend: String = ""
         try{
-
-
             val cols = data.split("|")[0]
             val vals = data.split("|")[1]
-            val idVal1 = "'${data.split("|")[2]}'"
+            val roles = data.split("|")[2].split(",")
+            val idVal = data.split("|")[3]
+            val idVal1 = "'${idVal}'"
+
+            for (role in roles){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.ROLE} WHERE role_name = ?")
+                stmtFK?.setString(1, role)
+                logger.debug("SELECT * FROM ${Tab.ROLE} WHERE role_name = '${role}'")
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Role not found in database"
+                }
+            }
 
             val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName1, idVal1))
             val valuesToUpdate = vals.split("`")
@@ -1553,6 +1565,29 @@ class DBUtils {
                 }
             val rowsAffected = stmt?.executeUpdate()
             logger.debug("$rowsAffected row updated.")
+
+            try {
+                if (roles.isNotEmpty()) {
+                    logger.debug(roles.toString())
+                    // remove old trashToTrashtype
+                    val stmt =
+                        conn?.prepareStatement("DELETE FROM ${Tab.USER_TO_ROLE} WHERE user_login = ?")
+                    stmt?.setString(1, idVal)
+                    stmt?.executeUpdate()
+                    for (tp in roles) {
+                        // add new record to userToRole
+                        val stmt = conn
+                            ?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?, ?)")
+                        logger.debug("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES ('${idVal}', '${tp}')")
+                        stmt?.setString(1, idVal)
+                        stmt?.setString(2, tp)
+                        stmt?.executeUpdate()
+                    }
+                }
+            } catch (ex: SQLIntegrityConstraintViolationException){
+                ex.printStackTrace()
+                return "ERROR: Role not found in database"
+            }
 
             dataToSend = rowsAffected.toString()
         } catch (ex: SQLIntegrityConstraintViolationException){
