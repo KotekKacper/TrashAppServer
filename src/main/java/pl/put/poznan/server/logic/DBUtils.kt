@@ -1907,6 +1907,7 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
         try{
 
             stmt = conn!!.createStatement()
+            conn?.autoCommit = false
 
             var whereCondition = data.split("'")[1]
             var RolerowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.USER_TO_ROLE, "user_".plus(data)))
@@ -1934,16 +1935,22 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
             dataToSend = rowsAffected.toString()
             if(rowsAffected==0)
             {
+                conn?.rollback()
                 return "ERROR: User could not be deleted. Please, try again later."
             }
             else
+                conn?.commit()
                 return "ERROR: User ${whereCondition} was successfully deleted."
         }
         catch(ex: Exception)
         {
             ex.printStackTrace()
+            conn?.rollback()
             return "ERROR: User could not be deleted. Please, try again later."
+        } finally {
+            conn?.autoCommit = true
         }
+
         return dataToSend
     }
 
