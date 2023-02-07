@@ -1052,8 +1052,11 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.USER}.fullname").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.country").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.city").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.district").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.street").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.flat_number").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
+                dataToSend += resultset.getString("${Tab.USER}.house_number").plus(";")
                 dataToSend += resultset.getString("${Tab.ROLE}.role_name").plus(";")
                 dataToSend += "\n"
             }
@@ -1111,7 +1114,11 @@ class DBUtils {
                 dataToSend += resultset.getString("phone").plus(";")
                 dataToSend += resultset.getString("country").plus(";")
                 dataToSend += resultset.getString("city").plus(";")
+                dataToSend += resultset.getString("district").plus(";")
                 dataToSend += resultset.getString("street").plus(";")
+                dataToSend += resultset.getString("flat_number").plus(";")
+                dataToSend += resultset.getString("post_code").plus(";")
+                dataToSend += resultset.getString("house_number").plus(";")
                 dataToSend += "\n"
             }
         }
@@ -1412,31 +1419,90 @@ class DBUtils {
     }
 
 
-    private fun updateTrash(data: String): String{
-        var stmt: Statement? = null
-        var dataToSend: String = ""
-        try{
-            var imageVariableToInsert: String? = ""
-            var imageValueToInsert: String? = ""
-            stmt = conn!!.createStatement()
-            var valuesToUpdate = data.split("|")[0]
-            var whereCondition = data.split("|")[1]
-            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.TRASH,valuesToUpdate, whereCondition))
-            println("$rowsAffected row(s) updated in Trash.")
+//    private fun updateTrash(data: String): String{
+//        var stmt: Statement? = null
+//        var dataToSend: String = ""
+//        try{
+//            var imageVariableToInsert: String? = ""
+//            var imageValueToInsert: String? = ""
+//            stmt = conn!!.createStatement()
+//            var valuesToUpdate = data.split("|")[0]
+//            var whereCondition = data.split("|")[1]
+//            var rowsAffected = stmt!!.executeUpdate(makeUpdateString(Tab.TRASH,valuesToUpdate, whereCondition))
+//            println("$rowsAffected row(s) updated in Trash.")
+//
+//            dataToSend = rowsAffected.toString()
+//
+//            if(rowsAffected==0)
+//            {
+//                dataToSend = "ERROR: Some error occured during updating. Try again later."
+//            }
+//        }
+//        catch(ex: Exception)
+//        {
+//            ex.printStackTrace()
+//            return "ERROR: Failed to add trash"
+//        }
+//        return dataToSend
+//    }
+fun collectTrash(tabName: String, data: String, idName: String): String{
+    var dataToSend: String = ""
+    try{
+        conn?.autoCommit = false
 
-            dataToSend = rowsAffected.toString()
+        var cols = data.split("|")[0]
+        var vals = data.split("|")[1]
+        val idVal = data.split("|")[2]
+        // clean login_report, vehicle_id and cleaningcrew_id
 
-            if(rowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during updating. Try again later."
+        val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
+        val valuesToUpdate = vals.split("`")
+        for (i in 1..valuesToUpdate.size){
+            logger.debug("$i : ${valuesToUpdate[i-1]}")
+            if (cols.split(",")[i-1] == "${Tab.TRASH}.collection_date"){
+                stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+            }
+            else if (cols.split(",")[i-1] == "${Tab.TRASH}.user_login"){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                stmtFK?.setString(1, valuesToUpdate[i - 1])
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                } else {
+                    conn?.rollback()
+                    return "ERROR: User not found in database"
+                }
+            } else{
+                stmt?.setString(i, valuesToUpdate[i-1])
             }
         }
-        catch(ex: Exception)
-        {
-            ex.printStackTrace()
-            return "ERROR: Failed to add trash"
-        }
-        return dataToSend
+        val rowsAffected = stmt?.executeUpdate()
+        logger.debug("$rowsAffected row updated.")
+
+        conn?.commit()
+        dataToSend = rowsAffected.toString()
+    } catch (ex: SQLIntegrityConstraintViolationException){
+        conn?.rollback()
+        ex.printStackTrace()
+        return "ERROR: Duplicate key"
+    } catch(ex: Exception)
+    {
+        conn?.rollback()
+        ex.printStackTrace()
+        return "ERROR: Update failed"
+    } finally {
+        conn?.autoCommit = true
+    }
+    return dataToSend
+}
+
+    private fun updateTrash(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.TRASH
+        val idName = "localization"
+        val output = collectTrash(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        else return output
     }
 
     private fun updateReport(data: String): String{
