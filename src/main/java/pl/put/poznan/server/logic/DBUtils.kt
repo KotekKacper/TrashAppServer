@@ -977,7 +977,7 @@ class DBUtils {
             stmt = conn!!.createStatement()
 
             if (role == "ADMIN"){
-                resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup")
+                resultset = stmt!!.executeQuery("SELECT cleaningcrew_id FROM usergroup group by cleaningcrew_id")
             } else {
                 resultset = stmt!!.executeQuery("select cleaningcrew_id, user_login from usergroup where user_login = '${login}'")
             }
@@ -1001,6 +1001,7 @@ class DBUtils {
                     dataToSend += "|"
                 }
             }
+            logger.debug(dataToSend)
         }
         catch(ex: Exception)
         {
