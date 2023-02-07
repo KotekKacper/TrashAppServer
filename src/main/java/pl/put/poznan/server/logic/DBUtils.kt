@@ -1259,34 +1259,77 @@ class DBUtils {
         else return output
     }
 
+//    private fun addUser(data: String): String{
+//        logger.debug(data)
+//        var stmt: Statement? = null
+//        var dataToSend: String = ""
+//        try{
+//            stmt = conn!!.createStatement()
+//            var variablesToInsert = data.split("|")[0]
+//            var valueToInsert = data.split("|")[1]
+//            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
+//            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
+//            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
+//            dataToSend = userRowsAffected.toString()
+//            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
+//
+//            if(userRowsAffected==0)
+//            {
+//                dataToSend = "ERROR: Some error occured during registration. Try again later."
+//            }
+//
+//
+//        }
+//        catch(ex: Exception)
+//        {
+//            ex.printStackTrace()
+//        }
+//        return dataToSend
+//    }
     private fun addUser(data: String): String{
         logger.debug(data)
-        var stmt: Statement? = null
+        val tabName = Tab.USER
+        val idName = "login"
+        val output = insertUser(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        else return output
+    }
+    fun insertUser(tabName: String, data: String): String{
         var dataToSend: String = ""
         try{
-            stmt = conn!!.createStatement()
-            var variablesToInsert = data.split("|")[0]
-            var valueToInsert = data.split("|")[1]
-            var userRowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER,variablesToInsert, valueToInsert))
-            println("$userRowsAffected row(s) inserted in ${Tab.USER}.")
-            var RolerowsAffected = stmt!!.executeUpdate(makeInsertString(Tab.USER_TO_ROLE,"user_login, role_name", "${valueToInsert.split(",")[0]}, 'USER'"))
-            dataToSend = userRowsAffected.toString()
-            println("$RolerowsAffected row(s) inserted in ${Tab.ROLE}.")
-
-            if(userRowsAffected==0)
-            {
-                dataToSend = "ERROR: Some error occured during registration. Try again later."
+            val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
+            val valuesToInsert = data.split("|")[1].split("`")
+            var login = valuesToInsert[0]
+            for (i in 1..valuesToInsert.size){
+                logger.debug("$i : ${valuesToInsert[i-1]}")
+                    stmt?.setString(i, valuesToInsert[i-1])
             }
+            val stmt2 = conn?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?,?)")
+            stmt2?.setString(1, login)
+            stmt2?.setString(2, "USER")
+            val rowsAffected = stmt?.executeUpdate()
+            val rowsUserRolesAffected = stmt2?.executeUpdate()
+            logger.debug("$rowsAffected row inserted.")
 
-
-        }
-        catch(ex: Exception)
+            dataToSend = rowsAffected.toString()
+        }catch (ex: SQLIntegrityConstraintViolationException){
+            ex.printStackTrace()
+            return "ERROR: Duplicate key"
+        }catch(ex: Exception)
         {
             ex.printStackTrace()
+            return "ERROR: Insertion failed"
         }
         return dataToSend
     }
-
+//    private fun addUserRegister(data: String): String{
+//        logger.debug(data)
+//        val tabName = Tab.USER
+//        val idName = "login"
+//        val output = insertUserRegister(tabName, data, idName)
+//        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+//        else return output
+//    }
     private fun addUserRegister(data: String): String{
         logger.debug(data)
         var stmt: Statement? = null
@@ -1386,18 +1429,7 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
             logger.debug("$i : ${valuesToUpdate[i-1]}")
             if (cols.split(",")[i-1] == "${Tab.TRASH}.collection_date"){
                 stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
-            }
-            else if (cols.split(",")[i-1] == "${Tab.TRASH}.user_login"){
-                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
-                stmtFK?.setString(1, valuesToUpdate[i - 1])
-                val rs = stmtFK?.executeQuery()
-                if (rs!!.next()) {
-                    stmt?.setString(i, valuesToUpdate[i-1])
-                } else {
-                    conn?.rollback()
-                    return "ERROR: User not found in database"
-                }
-            } else{
+            }else{
                 stmt?.setString(i, valuesToUpdate[i-1])
             }
         }
@@ -1884,7 +1916,7 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
         try{
             stmt = conn!!.createStatement()
             val dataFrom = data.split(", ")
-            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login = ${dataFrom[0]} AND password = ${dataFrom[1]}"))
+            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login = ? AND password = ?"))
 
             while (resultset!!.next()) {
                 dataToSend = resultset.getInt("COUNT(*)").toString()
