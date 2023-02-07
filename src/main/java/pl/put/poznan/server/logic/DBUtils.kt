@@ -99,7 +99,7 @@ class DBUtils {
             }
             logger.debug("$rowsAffected row updated.")
 
-            if (colsArr.contains("${Tab.TRASH}.trash_types")){
+            if (trashTypes.isNotEmpty()){
                 logger.debug(trashTypes)
                 // remove old trashToTrashtype
                 val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
@@ -450,7 +450,7 @@ class DBUtils {
             val rowsAffected = stmt?.executeUpdate()
             logger.debug("$rowsAffected row updated.")
 
-            if (colsArr.contains("${Tab.TRASH}.trash_types")){
+            if (trashTypes.isNotEmpty()){
                 logger.debug(trashTypes)
                 // remove old trashToTrashtype
                 val stmt = conn?.prepareStatement("DELETE FROM ${Tab.TRASH_TO_TYPE} WHERE trash_id = ?")
@@ -516,7 +516,11 @@ class DBUtils {
             for (i in 1..valuesToUpdate.size){
                 logger.debug("$i : ${valuesToUpdate[i-1]}")
                 if (cols.split(",")[i-1] == "${Tab.CLEAN_CREW}.meet_date"){
-                    stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                    if (valuesToUpdate[i-1] == "null"){
+                        stmt?.setNull(i, Types.INTEGER)
+                    } else {
+                        stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
+                    }
                 } else{
                     stmt?.setString(i, valuesToUpdate[i-1])
                 }
@@ -696,7 +700,10 @@ class DBUtils {
         try{
             val cols = data.split("|")[0]
             val vals = data.split("|")[1]
-            val idVal = data.split("|")[2]
+            var idVal = data.split("|")[2]
+            if (idName == "role_name"){
+                idVal = "'${idVal}'"
+            }
 
             val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName, idVal))
             val valuesToUpdate = vals.split("`")
@@ -791,6 +798,7 @@ class DBUtils {
             "getCompanies" -> getCompanies(data)
             "getVehicles" -> getVehicles(data)
             "getWorkers" -> getWorkers(data)
+            "getRoles" -> getRoles(data)
             "getUserCred" -> getUserCred(data)
 
             "addTrash" -> addTrashByFunc(data)
@@ -801,6 +809,7 @@ class DBUtils {
             "addCompany" -> addCompany(data)
             "addVehicle" -> addVehicle(data)
             "addWorker" -> addWorker(data)
+            "addRole" -> addRole(data)
             "addUserRegister" -> addUserRegister(data)
 
             "updateTrash" -> updateTrash(data)
@@ -811,6 +820,7 @@ class DBUtils {
             "updateCompany" -> updateCompany(data)
             "updateVehicle" -> updateVehicle(data)
             "updateWorker" -> updateWorker(data)
+            "updateRole" -> updateRole(data)
 
             "deleteReport" -> deleteReport(data)
             "deleteGroup" -> deleteGroup(data)
@@ -819,6 +829,7 @@ class DBUtils {
             "deleteCompany" -> deleteCompany(data)
             "deleteVehicle" -> deleteVehicle(data)
             "deleteWorker" -> deleteWorker(data)
+            "deleteRole" -> deleteRole(data)
             "deleteImage" -> deleteImage(data)
 
             "checkUserExist" -> checkUserExist(data)
@@ -911,9 +922,18 @@ class DBUtils {
             while (resultset!!.next()) {
                 var id = resultset.getString("${Tab.TRASH}.id")
 
-                var r2 = conn!!.createStatement().executeQuery("select trashtype_name from trashtotrashtype where trash_id = ${id}")
+                var s2 = conn!!.prepareStatement("select trashtype_name from trashtotrashtype where trash_id = ?")
+                s2.setInt(1, id.toInt())
+                val r2 = s2.executeQuery()
                 var types = ""
                 while (r2!!.next()) {types+=r2.getString("trashtype_name").plus(',');}
+
+                var s3 = conn!!.prepareStatement("select id from image where trash_id = ?")
+                s3.setInt(1, id.toInt())
+                val r3 = s3.executeQuery()
+                var images = arrayListOf<String>()
+                while (r3!!.next()) {images.add(r3.getInt("id").toString());}
+                var imgJoined = images.joinToString(",")
 
                 dataToSend += id.plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.localization").plus(";")
@@ -926,6 +946,7 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.TRASH}.cleaningcrew_id")?.toString().plus(";")
                 dataToSend += resultset.getString("${Tab.TRASH}.collection_localization")?.toString().plus(";")
                 dataToSend += types.toString().plus(";")
+                dataToSend += imgJoined.toString().plus(";")
                 dataToSend += "\n"
             }
         }
@@ -1020,11 +1041,11 @@ class DBUtils {
         var dataToSend: String = ""
         try{
             stmt = conn!!.createStatement()
-            var joinString = useJoin(Tab.USER, Tab.USER_TO_ROLE,"login","user_login").plus(useJoin(Tab.USER_TO_ROLE,Tab.ROLE,"role_name","role_name"))
-            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, stringJoin = joinString, orderByString = orderBy("login")))
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.USER, orderByString = orderBy("login")))
 
             while (resultset!!.next()) {
-                dataToSend += resultset.getString("${Tab.USER}.login").plus(";")
+                val login = resultset.getString("${Tab.USER}.login")
+                dataToSend += login.plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.password").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.email").toString().plus(";")
                 dataToSend += resultset.getInt("${Tab.USER}.phone").toString().plus(";")
@@ -1036,7 +1057,14 @@ class DBUtils {
                 dataToSend += resultset.getString("${Tab.USER}.flat_number").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.post_code").plus(";")
                 dataToSend += resultset.getString("${Tab.USER}.house_number").plus(";")
-                dataToSend += resultset.getString("${Tab.ROLE}.role_name").plus(";")
+
+                val s2 = conn!!.prepareStatement("select role_name from usertorole where user_login = ?")
+                s2.setString(1, login)
+                val r2 = s2.executeQuery()
+                var roles = ""
+                while (r2!!.next()) {roles+=r2.getString("role_name").plus(',');}
+                dataToSend += roles.plus(";")
+
                 dataToSend += "\n"
             }
         }
@@ -1090,7 +1118,7 @@ class DBUtils {
             while (resultset!!.next()) {
                 dataToSend += resultset.getString("nip").plus(";")
                 dataToSend += resultset.getString("email").plus(";")
-                dataToSend += resultset.getInt("phone").toString().plus(";")
+                dataToSend += resultset.getString("phone").plus(";")
                 dataToSend += resultset.getString("country").plus(";")
                 dataToSend += resultset.getString("city").plus(";")
                 dataToSend += resultset.getString("district").plus(";")
@@ -1160,6 +1188,28 @@ class DBUtils {
         return dataToSend
     }
 
+    private fun getRoles(data: String): String{
+        logger.debug(data)
+        var stmt: Statement? = null
+        var resultset: ResultSet? = null
+        var dataToSend: String = ""
+        try{
+            stmt = conn!!.createStatement()
+
+            resultset = stmt!!.executeQuery(makeSelectString(data, Tab.ROLE, orderByString = orderBy("role_name")))
+
+            while (resultset!!.next()) {
+                dataToSend += resultset.getString("role_name").plus(";")
+                dataToSend += "\n"
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+        }
+        return dataToSend
+    }
+
     private fun getUserCred(data: String): String{
         logger.debug(data)
 
@@ -1219,12 +1269,36 @@ class DBUtils {
             var imageVariableToInsert: String? = ""
             var imageValueToInsert: String? = ""
             var valueToInsert = data.split("|")[0]
+            val trashTypes = data.split("|")[1]
+            logger.debug("Trash types: ${trashTypes}")
             logger.debug(makeCallString(valueToInsert))
             val stmt = conn?.prepareCall(makeCallString(valueToInsert))
             stmt?.registerOutParameter(1, Types.INTEGER)
             stmt?.execute()
             logger.debug("Row inserted in Trash.")
-            return stmt!!.getInt(1).toString()
+
+            val idVal = stmt!!.getInt(1).toString()
+
+            // adding trash types
+            for (tp in trashTypes.split(",")){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.TRASH_TYPE} WHERE typename = ?")
+                stmtFK?.setString(1, tp)
+                val rs = stmtFK?.executeQuery()
+                if (!rs!!.next()) {
+                    // add new to Trashtype if not exist
+                    val stmt = conn?.prepareStatement("INSERT INTO ${Tab.TRASH_TYPE}(typename) VALUES (?)")
+                    stmt?.setString(1, tp)
+                    stmt?.executeUpdate()
+                }
+                // add new record to trashToTrashtype
+                val stmt = conn
+                    ?.prepareStatement("INSERT INTO ${Tab.TRASH_TO_TYPE}(trash_id, trashtype_name) VALUES (?, ?)")
+                stmt?.setInt(1, idVal.toInt())
+                stmt?.setString(2, tp)
+                stmt?.executeUpdate()
+            }
+
+            return idVal
         }
         catch(ex: Exception)
         {
@@ -1291,7 +1365,7 @@ class DBUtils {
         val tabName = Tab.USER
         val idName = "login"
         val output = insertUser(tabName, data)
-        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        if (output == "ERROR: Duplicate key") return "ERROR: Login already in database"
         else return output
     }
     fun insertUser(tabName: String, data: String): String{
@@ -1299,17 +1373,52 @@ class DBUtils {
         try{
             val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
             val valuesToInsert = data.split("|")[1].split("`")
+
+            val roles = data.split("|")[2].split(",")
+            val idVal = data.split("|")[1].split("`")[0]
+
+            for (role in roles){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.ROLE} WHERE role_name = ?")
+                stmtFK?.setString(1, role)
+                logger.debug("SELECT * FROM ${Tab.ROLE} WHERE role_name = '${role}'")
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Role not found in database"
+                }
+            }
+
             var login = valuesToInsert[0]
             for (i in 1..valuesToInsert.size){
                 logger.debug("$i : ${valuesToInsert[i-1]}")
                     stmt?.setString(i, valuesToInsert[i-1])
             }
-            val stmt2 = conn?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?,?)")
-            stmt2?.setString(1, login)
-            stmt2?.setString(2, "USER")
             val rowsAffected = stmt?.executeUpdate()
-            val rowsUserRolesAffected = stmt2?.executeUpdate()
             logger.debug("$rowsAffected row inserted.")
+
+            try {
+                if (roles.isNotEmpty()) {
+                    logger.debug(roles.toString())
+                    // remove old trashToTrashtype
+                    val stmt =
+                        conn?.prepareStatement("DELETE FROM ${Tab.USER_TO_ROLE} WHERE user_login = ?")
+                    stmt?.setString(1, idVal)
+                    stmt?.executeUpdate()
+                    for (tp in roles) {
+                        // add new record to userToRole
+                        val stmt = conn
+                            ?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?, ?)")
+                        logger.debug("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES ('${idVal}', '${tp}')")
+                        stmt?.setString(1, idVal)
+                        stmt?.setString(2, tp)
+                        stmt?.executeUpdate()
+                    }
+                }
+            } catch (ex: SQLIntegrityConstraintViolationException){
+                ex.printStackTrace()
+                return "ERROR: Role not found in database"
+            }
 
             dataToSend = rowsAffected.toString()
         }catch (ex: SQLIntegrityConstraintViolationException){
@@ -1322,14 +1431,7 @@ class DBUtils {
         }
         return dataToSend
     }
-//    private fun addUserRegister(data: String): String{
-//        logger.debug(data)
-//        val tabName = Tab.USER
-//        val idName = "login"
-//        val output = insertUserRegister(tabName, data, idName)
-//        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
-//        else return output
-//    }
+
     private fun addUserRegister(data: String): String{
         logger.debug(data)
         var stmt: Statement? = null
@@ -1386,6 +1488,14 @@ class DBUtils {
         else return output
     }
 
+    private fun addRole(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.ROLE
+        val output = insertAny(tabName, data)
+        if (output == "ERROR: Duplicate key") return "ERROR: Role already in database"
+        else return output
+    }
+
 
 //    private fun updateTrash(data: String): String{
 //        var stmt: Statement? = null
@@ -1429,7 +1539,18 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
             logger.debug("$i : ${valuesToUpdate[i-1]}")
             if (cols.split(",")[i-1] == "${Tab.TRASH}.collection_date"){
                 stmt?.setTimestamp(i, Timestamp.valueOf(valuesToUpdate[i-1]))
-            }else{
+            }
+            else if (cols.split(",")[i-1] == "${Tab.TRASH}.user_login"){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.USER} WHERE login = ?")
+                stmtFK?.setString(1, valuesToUpdate[i - 1])
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    stmt?.setString(i, valuesToUpdate[i-1])
+                } else {
+                    conn?.rollback()
+                    return "ERROR: User not found in database"
+                }
+            } else{
                 stmt?.setString(i, valuesToUpdate[i-1])
             }
         }
@@ -1542,6 +1663,15 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
         else return output
     }
 
+    private fun updateRole(data: String): String{
+        logger.debug(data)
+        val tabName = Tab.ROLE
+        val idName = "role_name"
+        val output = updateAny(tabName, data, idName)
+        if (output == "ERROR: Duplicate key") return "ERROR: The role already in database"
+        else return output
+    }
+
     private fun updateUser(data: String): String{
         logger.debug(data)
         val tabName = Tab.USER
@@ -1553,11 +1683,23 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
     fun updateUser(tabName: String, data: String, idName1: String): String{
         var dataToSend: String = ""
         try{
-
-
             val cols = data.split("|")[0]
             val vals = data.split("|")[1]
-            val idVal1 = "'${data.split("|")[2]}'"
+            val roles = data.split("|")[2].split(",")
+            val idVal = data.split("|")[3]
+            val idVal1 = "'${idVal}'"
+
+            for (role in roles){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.ROLE} WHERE role_name = ?")
+                stmtFK?.setString(1, role)
+                logger.debug("SELECT * FROM ${Tab.ROLE} WHERE role_name = '${role}'")
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Role not found in database"
+                }
+            }
 
             val stmt = conn?.prepareStatement(makeUpdateStatement(tabName, cols, idName1, idVal1))
             val valuesToUpdate = vals.split("`")
@@ -1567,6 +1709,29 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
                 }
             val rowsAffected = stmt?.executeUpdate()
             logger.debug("$rowsAffected row updated.")
+
+            try {
+                if (roles.isNotEmpty()) {
+                    logger.debug(roles.toString())
+                    // remove old trashToTrashtype
+                    val stmt =
+                        conn?.prepareStatement("DELETE FROM ${Tab.USER_TO_ROLE} WHERE user_login = ?")
+                    stmt?.setString(1, idVal)
+                    stmt?.executeUpdate()
+                    for (tp in roles) {
+                        // add new record to userToRole
+                        val stmt = conn
+                            ?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?, ?)")
+                        logger.debug("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES ('${idVal}', '${tp}')")
+                        stmt?.setString(1, idVal)
+                        stmt?.setString(2, tp)
+                        stmt?.executeUpdate()
+                    }
+                }
+            } catch (ex: SQLIntegrityConstraintViolationException){
+                ex.printStackTrace()
+                return "ERROR: Role not found in database"
+            }
 
             dataToSend = rowsAffected.toString()
         } catch (ex: SQLIntegrityConstraintViolationException){
@@ -1804,6 +1969,31 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
         return dataToSend
     }
 
+    private fun deleteRole(data: String): String{
+        var stmt: Statement? = null
+        var dataToSend: String = ""
+        try{
+
+            stmt = conn!!.createStatement()
+
+            var whereCondition = data
+            var rowsAffected = stmt!!.executeUpdate(makeDeleteString(Tab.ROLE, whereCondition))
+            println("$rowsAffected row(s) updated in Worker.")
+
+            dataToSend = rowsAffected.toString()
+            if(rowsAffected==0)
+            {
+                return "ERROR: Worker could not be deleted. Please, try again later."
+            }
+        }
+        catch(ex: Exception)
+        {
+            ex.printStackTrace()
+            return "ERROR: Worker could not be deleted. Please, try again later."
+        }
+        return dataToSend
+    }
+
 
 
     fun uploadImage(trashId: String, type: String, content: ByteArray) {
@@ -1914,17 +2104,24 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
         var resultset: ResultSet? = null
         var dataToSend: String = ""
         try{
-            stmt = conn!!.prepareStatement("SELECT COUNT(*) FROM ${Tab.USER} WHERE login = ? AND password = ?")
             val dataFrom = data.split(", ")
-            logger.debug(dataFrom[0])
-            logger.debug(dataFrom[1])
-            stmt?.setString(1, dataFrom[0])
-            stmt?.setString(2, dataFrom[1])
+            stmt = conn!!.prepareStatement("SELECT COUNT(*) FROM ${Tab.USER} WHERE login = ? AND password = ?")
+            stmt.setString(1, dataFrom[0])
+            stmt.setString(2, dataFrom[1])
+            resultset = stmt!!.executeQuery()
 
-            stmt?.executeQuery().use { resultSet ->
-                while (resultSet?.next()!!) {
-                    dataToSend = resultSet.getString("COUNT(*)")
-                    logger.debug(dataToSend)
+            while (resultset!!.next()) {
+                val exists = resultset.getInt("COUNT(*)")
+                if (exists == 1){
+                    val s2 = conn!!.prepareStatement("select role_name from usertorole where user_login = ?")
+                    s2.setString(1, dataFrom[0])
+                    val rs2 = s2.executeQuery()
+                    var roles = ""
+                    while (rs2!!.next()) {roles+=rs2.getString("role_name").plus(',');}
+                    logger.debug("Roles: ${roles}")
+                    dataToSend = roles
+                } else {
+                    dataToSend = exists.toString()
                 }
             }
             if(dataToSend.equals("0"))
