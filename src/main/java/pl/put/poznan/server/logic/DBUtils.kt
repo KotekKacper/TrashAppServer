@@ -1358,7 +1358,7 @@ class DBUtils {
         val tabName = Tab.USER
         val idName = "login"
         val output = insertUser(tabName, data)
-        if (output == "ERROR: Duplicate key") return "ERROR: Something went wrong"
+        if (output == "ERROR: Duplicate key") return "ERROR: Login already in database"
         else return output
     }
     fun insertUser(tabName: String, data: String): String{
@@ -1366,17 +1366,52 @@ class DBUtils {
         try{
             val stmt = conn?.prepareStatement(makeInsertStatement(tabName, data.split("|")[0]))
             val valuesToInsert = data.split("|")[1].split("`")
+
+            val roles = data.split("|")[2].split(",")
+            val idVal = data.split("|")[1].split("`")[0]
+
+            for (role in roles){
+                val stmtFK = conn?.prepareStatement("SELECT * FROM ${Tab.ROLE} WHERE role_name = ?")
+                stmtFK?.setString(1, role)
+                logger.debug("SELECT * FROM ${Tab.ROLE} WHERE role_name = '${role}'")
+                val rs = stmtFK?.executeQuery()
+                if (rs!!.next()) {
+                    continue
+                } else {
+                    return "ERROR: Role not found in database"
+                }
+            }
+
             var login = valuesToInsert[0]
             for (i in 1..valuesToInsert.size){
                 logger.debug("$i : ${valuesToInsert[i-1]}")
                     stmt?.setString(i, valuesToInsert[i-1])
             }
-            val stmt2 = conn?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?,?)")
-            stmt2?.setString(1, login)
-            stmt2?.setString(2, "USER")
             val rowsAffected = stmt?.executeUpdate()
-            val rowsUserRolesAffected = stmt2?.executeUpdate()
             logger.debug("$rowsAffected row inserted.")
+
+            try {
+                if (roles.isNotEmpty()) {
+                    logger.debug(roles.toString())
+                    // remove old trashToTrashtype
+                    val stmt =
+                        conn?.prepareStatement("DELETE FROM ${Tab.USER_TO_ROLE} WHERE user_login = ?")
+                    stmt?.setString(1, idVal)
+                    stmt?.executeUpdate()
+                    for (tp in roles) {
+                        // add new record to userToRole
+                        val stmt = conn
+                            ?.prepareStatement("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES (?, ?)")
+                        logger.debug("INSERT INTO ${Tab.USER_TO_ROLE}(user_login, role_name) VALUES ('${idVal}', '${tp}')")
+                        stmt?.setString(1, idVal)
+                        stmt?.setString(2, tp)
+                        stmt?.executeUpdate()
+                    }
+                }
+            } catch (ex: SQLIntegrityConstraintViolationException){
+                ex.printStackTrace()
+                return "ERROR: Role not found in database"
+            }
 
             dataToSend = rowsAffected.toString()
         }catch (ex: SQLIntegrityConstraintViolationException){
