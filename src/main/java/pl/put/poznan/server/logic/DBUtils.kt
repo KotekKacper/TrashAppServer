@@ -1914,12 +1914,18 @@ fun collectTrash(tabName: String, data: String, idName: String): String{
         var resultset: ResultSet? = null
         var dataToSend: String = ""
         try{
-            stmt = conn!!.createStatement()
+            stmt = conn!!.prepareStatement("SELECT COUNT(*) FROM ${Tab.USER} WHERE login = ? AND password = ?")
             val dataFrom = data.split(", ")
-            resultset = stmt!!.executeQuery(makeSelectString("COUNT(*)", Tab.USER, "login = ? AND password = ?"))
+            logger.debug(dataFrom[0])
+            logger.debug(dataFrom[1])
+            stmt?.setString(1, dataFrom[0])
+            stmt?.setString(2, dataFrom[1])
 
-            while (resultset!!.next()) {
-                dataToSend = resultset.getInt("COUNT(*)").toString()
+            stmt?.executeQuery().use { resultSet ->
+                while (resultSet?.next()!!) {
+                    dataToSend = resultSet.getString("COUNT(*)")
+                    logger.debug(dataToSend)
+                }
             }
             if(dataToSend.equals("0"))
             {
